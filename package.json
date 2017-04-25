@@ -1,0 +1,15 @@
+{
+  "name": "sent-url",
+  "version": "1.0.0",
+  "description": "this is sent url",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "mysql": "^2.11.1",
+    "randomstring": "^1.1.5"
+  }
+}

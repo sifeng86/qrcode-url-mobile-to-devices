@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Socket.io Test</title>
+    <script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.js"></script>
+    <script type="text/javascript" src="http://jeromeetienne.github.io/jquery-qrcode/src/qrcode.js"></script>
+    <script type="text/javascript" src="http://jeromeetienne.github.io/jquery-qrcode/src/jquery.qrcode.js"></script>
+<script>
+
+</script>
+  </head>
+  <body>
+    <script>    
+      var socket = io.connect('http://52.197.142.64:8080');
+      socket.emit('hello', {'hello': "Hello, This is me!"});
+      socket.on('qrcode', function(data){
+        $('#text').qrcode("http://52.197.142.64/sent-url/url_fire.php?token="+data.qrcode);
+        $('#token_code').val(data.token_code);
+        $('#urlto').attr("href", "http://52.197.142.64/sent-url/url_fire.php?token="+data.qrcode);
+      });
+      socket.on('goto', function(data){
+        window.location = data.url;
+        $('#show').val(data.url);
+      });
+
+      /*
+      $(document).ready(function(){
+        $('#text').keypress(function(e){
+          socket.emit('client_data', {'letter': String.fromCharCode(e.charCode)});
+        });
+      });
+      */
+    </script>
+     <div id="date">
+    </div>
+    <input name="show" type="text" id="show" disabled/> <br>
+     <br>
+     <a href="" id="urlto"><div id="text"></div></a>
+   <br>
+   <input name="show" type="text" id="token_code" /> <br>
+  </body>
+</html>
