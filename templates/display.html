@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="__PAGE_DESCRIPTION__">
+    <meta name="robots" content="__PAGE_ROBOTS__">
+    <meta name="application-name" content="__BRAND_NAME__">
+    <meta name="apple-mobile-web-app-title" content="__BRAND_NAME__">
+    <meta name="theme-color" content="#0f766e">
+    <link rel="canonical" href="__CANONICAL_URL__">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="__BRAND_NAME__">
+    <meta property="og:type" content="__OG_TYPE__">
+    <meta property="og:title" content="__PAGE_TITLE__">
+    <meta property="og:description" content="__PAGE_DESCRIPTION__">
+    <meta property="og:url" content="__PAGE_URL__">
+    <meta property="og:image" content="__OG_IMAGE_URL__">
+    <meta property="og:image:alt" content="__OG_IMAGE_ALT__">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="__PAGE_TITLE__">
+    <meta name="twitter:description" content="__PAGE_DESCRIPTION__">
+    <meta name="twitter:image" content="__OG_IMAGE_URL__">
+    <meta name="twitter:image:alt" content="__OG_IMAGE_ALT__">
+    <title>__PAGE_TITLE__</title>
+    __STRUCTURED_DATA_BLOCK__
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="__STYLESHEET_PATH__">
+  </head>
+  <body class="page page-display">
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="#hero">
+          <span class="brand-mark">__BRAND_MARK__</span>
+          <span>
+            <strong>__BRAND_NAME__</strong>
+            <small>Send URLs across devices</small>
+          </span>
+        </a>
+        <div class="topbar-pill">No login required</div>
+      </header>
+
+      <main class="layout display-layout" id="hero">
+        <section class="hero-panel card card-hero">
+          <p class="eyebrow">Cross-device URL sender</p>
+          <h1>Push a URL from your phone to another device.</h1>
+          <p class="lead">
+            Open this page on the device you want to control. Scan the QR code with your phone,
+            paste a URL, and this device opens it right away.
+          </p>
+
+          <div class="hero-pills" aria-label="Service highlights">
+            <span class="hero-pill">No sign up</span>
+            <span class="hero-pill">No app required</span>
+            <span class="hero-pill">Works in any modern browser</span>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature-card">
+              <span class="feature-index">01</span>
+              <h2>Open the receiver screen</h2>
+              <p>Leave this page open on the device where you want the next URL to appear.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-index">02</span>
+              <h2>Scan the QR code</h2>
+              <p>Use your phone or tablet to open the sender page linked to this session.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-index">03</span>
+              <h2>Paste the URL</h2>
+              <p>Paste the page you want to share and this device opens it in a moment.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="card session-card">
+          <div class="card-header">
+            <div>
+              <p class="eyebrow">Receiver screen</p>
+              <h2>Ready to receive the next URL</h2>
+            </div>
+            <div class="status-pill" id="connectionBadge" data-tone="neutral">Connecting</div>
+          </div>
+
+          <div class="status-line">
+            <p id="sessionStatusText">Creating a QR code so your phone can send a URL to this device.</p>
+          </div>
+
+          <div class="qr-wrapper">
+            <div class="qr-shell">
+              <img id="qrImage" alt="QR code used to open the secure mobile sender page">
+            </div>
+            <p class="helper-copy" id="expiryLabel">A fresh access code will appear here in a moment.</p>
+          </div>
+
+          <div class="field-stack">
+            <label class="field-label" for="tokenField">Session code</label>
+            <div class="field-row">
+              <input class="text-field text-field-mono" id="tokenField" readonly value="">
+              <button class="button button-secondary" type="button" data-copy-target="tokenField">Copy code</button>
+            </div>
+
+            <label class="field-label" for="mobileLinkField">Phone link</label>
+            <div class="field-row field-row-wide">
+              <input class="text-field text-field-mono" id="mobileLinkField" readonly value="">
+              <button class="button button-secondary" type="button" data-copy-target="mobileLinkField">Copy link</button>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <a class="button button-primary" id="openMobileLink" href="#" target="_blank" rel="noreferrer">Open on phone</a>
+            <button class="button button-secondary" id="refreshSessionButton" type="button">Refresh code</button>
+          </div>
+
+          <div class="feedback-panel" id="redirectPanel" data-tone="neutral">
+            This device stays on standby until a valid URL is received.
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer-note">
+        <span>A simple way to send a URL from your phone to another device.</span>
+        <span>&copy; __CURRENT_YEAR__ __BRAND_NAME__</span>
+      </footer>
+    </div>
+
+    <script>
+      window.__APP_CONFIG__ = __APP_CONFIG_JSON__;
+      window.__PAGE_DATA__ = __PAGE_DATA_JSON__;
+    </script>
+    <script src="__SOCKET_SCRIPT_PATH__"></script>
+    <script src="__SCRIPT_PATH__" defer></script>
+  </body>
+</html>

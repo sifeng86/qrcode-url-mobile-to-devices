@@ -1,15 +1,30 @@
 {
-  "name": "sent-url",
-  "version": "1.0.0",
-  "description": "this is sent url",
-  "main": "index.js",
+  "name": "qrcode-url-mobile-to-devices",
+  "version": "2.0.0",
+  "description": "Sendline lets you send a URL from your phone to another device with a QR code.",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "test": "node --test",
+    "test:e2e": "node --test test/e2e.relay-flow.test.js"
   },
+  "keywords": [
+    "qr-code",
+    "socket.io",
+    "docker",
+    "shared-screen",
+    "link-routing"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "mysql": "^2.11.1",
-    "randomstring": "^1.1.5"
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "mysql2": "^3.11.5",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
   }
 }

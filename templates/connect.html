@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="__PAGE_DESCRIPTION__">
+    <meta name="robots" content="__PAGE_ROBOTS__">
+    <meta name="application-name" content="__BRAND_NAME__">
+    <meta name="apple-mobile-web-app-title" content="__BRAND_NAME__">
+    <meta name="theme-color" content="#0f766e">
+    <link rel="canonical" href="__CANONICAL_URL__">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="__BRAND_NAME__">
+    <meta property="og:type" content="__OG_TYPE__">
+    <meta property="og:title" content="__PAGE_TITLE__">
+    <meta property="og:description" content="__PAGE_DESCRIPTION__">
+    <meta property="og:url" content="__PAGE_URL__">
+    <meta property="og:image" content="__OG_IMAGE_URL__">
+    <meta property="og:image:alt" content="__OG_IMAGE_ALT__">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="__PAGE_TITLE__">
+    <meta name="twitter:description" content="__PAGE_DESCRIPTION__">
+    <meta name="twitter:image" content="__OG_IMAGE_URL__">
+    <meta name="twitter:image:alt" content="__OG_IMAGE_ALT__">
+    <title>__PAGE_TITLE__</title>
+    __STRUCTURED_DATA_BLOCK__
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="__STYLESHEET_PATH__">
+  </head>
+  <body class="page page-connect">
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-three"></div>
+    <div class="page-shell page-shell-compact">
+      <header class="topbar">
+        <a class="brand" href="__HOME_PATH__">
+          <span class="brand-mark">__BRAND_MARK__</span>
+          <span>
+            <strong>__BRAND_NAME__</strong>
+            <small>Send from phone</small>
+          </span>
+        </a>
+        <div class="topbar-pill">No login required</div>
+      </header>
+
+      <main class="layout connect-layout">
+        <section class="card connect-card">
+          <p class="eyebrow">Phone sender</p>
+          <h1>Paste a URL and open it on the other device.</h1>
+          <p class="lead">
+            Open this page by scanning the QR code, confirm the session code, paste your URL,
+            and Sendline will open it on the receiver screen.
+          </p>
+
+          <div class="feedback-panel" id="sessionLookupStatus" data-tone="neutral">
+            Scan the QR code or enter the session code to continue.
+          </div>
+
+          <form id="handoffForm" class="form-stack" novalidate>
+            <label class="field-label" for="tokenInput">Session code</label>
+            <input class="text-field text-field-mono" id="tokenInput" name="token" autocomplete="off" spellcheck="false" placeholder="Enter the code shown on the screen">
+
+            <label class="field-label" for="urlInput">Page URL</label>
+            <input class="text-field" id="urlInput" name="url" type="url" autocomplete="url" inputmode="url" placeholder="https://example.com/menu">
+            <p class="helper-copy">If you enter only a domain, the service adds https:// automatically.</p>
+
+            <button class="button button-primary button-block" id="submitButton" type="submit">Send URL</button>
+          </form>
+
+          <div class="feedback-panel" id="resultPanel" data-tone="neutral">
+            The URL will be checked before the other device is updated.
+          </div>
+        </section>
+
+        <aside class="card info-card">
+          <p class="eyebrow">How it works</p>
+          <div class="info-list">
+            <article>
+              <h2>1. Scan the QR code</h2>
+              <p>Open the sender page from the QR code shown on the receiver screen.</p>
+            </article>
+            <article>
+              <h2>2. Paste the URL</h2>
+              <p>Copy any http or https link you want to open on the other device.</p>
+            </article>
+            <article>
+              <h2>3. Tap Send URL</h2>
+              <p>Sendline verifies the session and opens the page on the receiver screen.</p>
+            </article>
+          </div>
+        </aside>
+      </main>
+
+      <footer class="footer-note footer-note-compact">
+        <span>Cross-device URL sending with no sign up or login.</span>
+        <span>&copy; __CURRENT_YEAR__ __BRAND_NAME__</span>
+      </footer>
+    </div>
+
+    <script>
+      window.__APP_CONFIG__ = __APP_CONFIG_JSON__;
+      window.__PAGE_DATA__ = __PAGE_DATA_JSON__;
+    </script>
+    <script src="__SCRIPT_PATH__" defer></script>
+  </body>
+</html>

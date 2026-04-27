@@ -1,0 +1,59 @@
+services:
+  app:
+    build: .
+    container_name: qrcode-relay-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      APP_PORT: 8080
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      BASE_PATH: ${BASE_PATH:-}
+      SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-20}
+      CLEANUP_INTERVAL_MS: ${CLEANUP_INTERVAL_MS:-300000}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-qrcode}
+      DB_PASSWORD: ${DB_PASSWORD:-qrcode_password}
+      DB_NAME: ${DB_NAME:-qrcode_relay}
+      DB_TABLE: ${DB_TABLE:-relay_sessions}
+      DB_CONNECT_RETRIES: ${DB_CONNECT_RETRIES:-20}
+      DB_CONNECT_RETRY_MS: ${DB_CONNECT_RETRY_MS:-3000}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - qrcode-network
+
+  db:
+    image: mysql:8.4
+    container_name: qrcode-relay-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-qrcode_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-qrcode_relay}
+      MYSQL_USER: ${MYSQL_USER:-qrcode}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-qrcode_password}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - qrcode-network
+
+volumes:
+  mysql-data:
+
+networks:
+  qrcode-network:
+    driver: bridge
