@@ -16,10 +16,14 @@
     <meta property="og:description" content="__PAGE_DESCRIPTION__">
     <meta property="og:url" content="__PAGE_URL__">
     <meta property="og:image" content="__OG_IMAGE_URL__">
+    <meta property="og:image:type" content="image/svg+xml">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="__OG_IMAGE_ALT__">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="__PAGE_TITLE__">
     <meta name="twitter:description" content="__PAGE_DESCRIPTION__">
+    <meta name="twitter:url" content="__PAGE_URL__">
     <meta name="twitter:image" content="__OG_IMAGE_URL__">
     <meta name="twitter:image:alt" content="__OG_IMAGE_ALT__">
     <title>__PAGE_TITLE__</title>
@@ -96,6 +100,32 @@
         <span>Cross-device URL sending with no sign up or login.</span>
         <span>&copy; __CURRENT_YEAR__ __BRAND_NAME__</span>
       </footer>
+    </div>
+
+    <div
+      class="completion-toast"
+      id="completionOverlay"
+      hidden
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      aria-labelledby="completionTitle"
+      aria-describedby="completionMessage"
+    >
+      <div class="completion-toast-card">
+        <div class="completion-toast-head">
+          <p class="eyebrow completion-toast-eyebrow">URL sent</p>
+          <div class="completion-toast-seconds">
+            <strong id="completionCountdown">5</strong>
+            <span>s</span>
+          </div>
+        </div>
+        <h2 id="completionTitle">The other device is opening your page.</h2>
+        <p class="completion-copy" id="completionMessage">This page will close in 5 seconds.</p>
+        <div class="completion-progress" aria-hidden="true">
+          <span class="completion-progress-bar" id="completionProgressBar"></span>
+        </div>
+      </div>
     </div>
 
     <script>

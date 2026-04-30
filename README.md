@@ -64,6 +64,39 @@ If you want to remove the local database volume too:
 docker compose down -v
 ```
 
+Important: this mode builds the files into the Docker image. If you edit files such as `templates/display.html`, `templates/connect.html`, `public/assets/main.css`, or files in `src/`, you must rebuild the app container before the changes appear:
+
+```bash
+docker compose up -d --build
+```
+
+### Option 1B: live-edit Docker development mode
+
+Use this mode when you want template, CSS, and server-side changes to take effect while you are editing.
+
+1. Start the stack with the development override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+2. Edit files in any of these folders:
+
+- `templates/`
+- `public/`
+- `src/`
+- `server.js`
+
+3. Refresh the browser after each change.
+
+In this mode, the app container bind-mounts your local files and runs `nodemon`, so server-side template changes and frontend asset changes are reloaded automatically.
+
+Stop it with:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+```
+
 ### Option 2: run with a remote MySQL database
 
 1. Copy the example environment file if needed.
@@ -118,7 +151,13 @@ npm install
 
 2. Ensure a MySQL database exists and matches the schema in `init.sql`.
 3. Create or update `.env`.
-4. Start the server:
+4. Start the server in watch mode:
+
+```bash
+npm run dev
+```
+
+Or start it once without file watching:
 
 ```bash
 npm start

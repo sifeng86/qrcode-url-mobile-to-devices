@@ -53,6 +53,72 @@ function createHomeStructuredData({ canonicalUrl, description, imageUrl }) {
       name: brand.name,
       operatingSystem: 'Any',
       url: canonicalUrl
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'HowTo',
+      description,
+      image: imageUrl,
+      inLanguage: 'en',
+      name: `How to send a URL from your phone to another device with ${brand.name}`,
+      step: [
+        {
+          '@type': 'HowToStep',
+          name: 'Open the receiver screen',
+          text: `Open ${brand.name} on the device that should receive the URL.`
+        },
+        {
+          '@type': 'HowToStep',
+          name: 'Scan the QR code',
+          text: 'Use your phone or tablet to scan the QR code and open the sender page.'
+        },
+        {
+          '@type': 'HowToStep',
+          name: 'Paste and send the URL',
+          text: 'Paste any valid http or https URL and send it so the other device opens it.'
+        }
+      ],
+      supply: [
+        {
+          '@type': 'HowToSupply',
+          name: 'A phone or tablet with a browser'
+        },
+        {
+          '@type': 'HowToSupply',
+          name: 'Another device with a browser'
+        }
+      ],
+      totalTime: 'PT1M'
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: [
+        {
+          '@type': 'Question',
+          name: 'Do I need to sign up or install an app?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: `${brand.name} runs in the browser and does not require sign-up, login, or app installation.`
+          }
+        },
+        {
+          '@type': 'Question',
+          name: 'What kind of links can I send?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: `${brand.name} accepts standard http and https URLs and opens them on the receiver device.`
+          }
+        },
+        {
+          '@type': 'Question',
+          name: 'Does the receiver page need to stay open?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Yes. Leave the receiver page open until the URL is sent, then the device will redirect to the new page.'
+          }
+        }
+      ]
     }
   ];
 }

@@ -28,6 +28,32 @@ Reset the database volume too:
 docker compose down -v
 ```
 
+This mode copies project files into the Docker image. If you change files like `templates/display.html`, `templates/connect.html`, `public/assets/main.css`, or anything under `src/`, rebuild the app container:
+
+```bash
+docker compose up -d --build
+```
+
+## Live-edit development mode
+
+When you want local file edits to take effect without rebuilding on every change, use the development override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+This mode:
+
+- bind-mounts the workspace into the container
+- runs `nodemon`
+- reloads changes from `templates/`, `public/`, `src/`, and `server.js`
+
+Stop it with:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+```
+
 ## Remote database mode
 
 If you already have MySQL elsewhere, update `.env` or your deployment environment with remote `DB_*` values, then run only the app service:

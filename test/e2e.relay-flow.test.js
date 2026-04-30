@@ -83,6 +83,9 @@ test('end-to-end relay flow behaves correctly', { timeout: 30000 }, async () => 
   assert.match(homeHtml, /<meta name="robots" content="index, follow, max-image-preview:large">/);
   assert.match(homeHtml, new RegExp(`<link rel="canonical" href="${escapeForRegExp(expectedHomeUrl)}">`));
   assert.match(homeHtml, /<meta property="og:site_name" content="Sendline">/);
+  assert.match(homeHtml, /FAQPage/);
+  assert.match(homeHtml, /HowTo/);
+  assert.match(homeHtml, /Frequently asked questions/);
 
   const robotsResponse = await fetch(`${appUrl}/robots.txt`);
   const robotsText = await robotsResponse.text();

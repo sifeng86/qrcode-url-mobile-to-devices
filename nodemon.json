@@ -1,0 +1,14 @@
+{
+  "watch": [
+    "server.js",
+    "src",
+    "templates",
+    "public"
+  ],
+  "ext": "js,json,html,css",
+  "ignore": [
+    "node_modules",
+    "test"
+  ],
+  "exec": "node server.js"
+}

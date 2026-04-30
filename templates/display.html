@@ -16,10 +16,14 @@
     <meta property="og:description" content="__PAGE_DESCRIPTION__">
     <meta property="og:url" content="__PAGE_URL__">
     <meta property="og:image" content="__OG_IMAGE_URL__">
+    <meta property="og:image:type" content="image/svg+xml">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="__OG_IMAGE_ALT__">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="__PAGE_TITLE__">
     <meta name="twitter:description" content="__PAGE_DESCRIPTION__">
+    <meta name="twitter:url" content="__PAGE_URL__">
     <meta name="twitter:image" content="__OG_IMAGE_URL__">
     <meta name="twitter:image:alt" content="__OG_IMAGE_ALT__">
     <title>__PAGE_TITLE__</title>
@@ -49,8 +53,15 @@
           <p class="eyebrow">Cross-device URL sender</p>
           <h1>Push a URL from your phone to another device.</h1>
           <p class="lead">
-            Open this page on the device you want to control. Scan the QR code with your phone,
-            paste a URL, and this device opens it right away.
+            Open this page on the device you want to control.
+          </p>
+          
+          <p class="lead">
+            Scan the QR code with your phone.
+          </p>
+
+          <p class="lead">
+            Paste a URL, and this device opens it right away.
           </p>
 
           <div class="hero-pills" aria-label="Service highlights">
@@ -112,16 +123,67 @@
             </div>
           </div>
 
-          <div class="action-row">
+          <div class="action-row receiver-actions">
             <a class="button button-primary" id="openMobileLink" href="#" target="_blank" rel="noreferrer">Open on phone</a>
             <button class="button button-secondary" id="refreshSessionButton" type="button">Refresh code</button>
           </div>
+          <p class="receiver-actions-note">Use the phone link to send a URL quickly, or refresh the code when you want a fresh session.</p>
 
           <div class="feedback-panel" id="redirectPanel" data-tone="neutral">
             This device stays on standby until a valid URL is received.
           </div>
         </section>
       </main>
+
+      <section class="support-grid" aria-label="More about Sendline">
+        <article class="card support-card support-card-wide">
+          <div class="support-head">
+            <p class="eyebrow">Good fit for</p>
+            <h2>When a URL starts on your phone but needs to open on another browser.</h2>
+            <p class="support-copy">
+              Sendline keeps the handoff simple: open the receiver screen, scan the QR code, paste the URL, and the other device opens it without typing the address by hand.
+            </p>
+          </div>
+          <div class="support-list">
+            <article class="support-item">
+              <span class="support-item-index">01</span>
+              <h3>Phone to desktop</h3>
+              <p>Open a page on a laptop or desktop without emailing the link to yourself.</p>
+            </article>
+            <article class="support-item">
+              <span class="support-item-index">02</span>
+              <h3>Tablet to TV browser</h3>
+              <p>Move a URL from a handheld device to a larger browser-based screen in seconds.</p>
+            </article>
+            <article class="support-item">
+              <span class="support-item-index">03</span>
+              <h3>Fast URL handoff</h3>
+              <p>Share a page between devices quickly when you want a simple QR-based sender with no login.</p>
+            </article>
+          </div>
+        </article>
+
+        <article class="card support-card faq-card">
+          <div class="support-head">
+            <p class="eyebrow">FAQ</p>
+            <h2>Frequently asked questions</h2>
+          </div>
+          <div class="faq-list">
+            <details class="faq-item" open>
+              <summary>Do I need to sign up or install an app?</summary>
+              <p>No. Sendline works in the browser on both devices and does not require sign-up or login.</p>
+            </details>
+            <details class="faq-item">
+              <summary>What kind of links can I send?</summary>
+              <p>You can send normal http and https URLs. Sendline validates the URL before opening it on the receiver device.</p>
+            </details>
+            <details class="faq-item">
+              <summary>Does the receiver page need to stay open?</summary>
+              <p>Yes. Keep the receiver page open until the URL is sent, then the device redirects to the new page.</p>
+            </details>
+          </div>
+        </article>
+      </section>
 
       <footer class="footer-note">
         <span>A simple way to send a URL from your phone to another device.</span>
