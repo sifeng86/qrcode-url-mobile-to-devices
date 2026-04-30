@@ -1,6 +1,6 @@
 # Sendline
 
-Sendline is a QR-based URL sender. It lets you open a receiver page on one device, scan a QR code on your phone, paste a URL, and open that URL on the other device in real time.
+Sendline is a QR-based temporary share hub. It lets you open a receiver page on one device, scan a QR code on your phone, and send a link, note, or temporary file to the other device in real time.
 
 ## Why this refactor exists
 
@@ -13,12 +13,15 @@ The original sample worked, but it relied on hardcoded IPs, mixed technologies, 
 ## Core features
 
 - Real-time QR handoff from phone to another device using Socket.IO.
+- Link and short-note delivery to a receiver inbox.
+- Optional temporary file delivery backed by Cloudflare R2 with short-lived download access.
+- Configurable share lifetime for all share types, with cleanup support for expired file objects.
 - Clean Node/Express-only runtime. The old PHP bridge is removed.
 - Default Docker Compose startup with MySQL included.
 - Optional `PUBLIC_BASE_URL` and `BASE_PATH` support so QR links can move across domains, IPs, ports, and subpaths.
-- Session validation, URL validation, expiry handling, and clearer error states.
+- Session validation, URL validation, file metadata validation, expiry handling, and clearer error states.
 - SEO-ready rendering with canonical URLs, Open Graph tags, robots rules, and sitemap output.
-- UI redesigned for receiver screens and mobile submission.
+- UI redesigned for a receiver inbox and a mobile share composer.
 
 ## Architecture
 
@@ -26,11 +29,12 @@ The original sample worked, but it relied on hardcoded IPs, mixed technologies, 
 - `src/app.js`: Express routes, Socket.IO events, page rendering, and orchestration.
 - `src/repository.js`: MySQL session persistence.
 - `src/config.js`: environment parsing and route/public URL helpers.
+- `src/storage.js`: Cloudflare R2 presigned upload/download handling.
 - `src/validation.js`: token and URL validation.
 - `templates/`: HTML templates for the display page, mobile page, and fallback states.
 - `public/assets/`: CSS and browser-side scripts.
 
-The persistence model is intentionally more generic than the original prototype so future transfer types, such as downloadable assets or richer payload metadata, can be added without reworking the whole app.
+The persistence model is intentionally more generic than the original prototype so share history, downloadable assets, and richer payload metadata can be added without reworking the whole app.
 
 ## Quick start
 
@@ -117,6 +121,57 @@ docker compose up -d --build app --no-deps
 
 If your app is exposed behind a reverse proxy or public domain, also set `PUBLIC_BASE_URL`. If it is mounted under a subpath, set `BASE_PATH` as well.
 
+### Optional: enable temporary file sharing with Cloudflare R2
+
+File sharing is disabled until the R2 settings below are configured.
+
+1. Create an R2 bucket for temporary uploads.
+2. Create R2 API credentials with access to that bucket.
+3. Configure bucket CORS so browser `PUT` uploads from your app origin are allowed.
+4. Set these variables before starting the app:
+
+- `FILE_STORAGE_DRIVER=r2`
+- `R2_ACCOUNT_ID`
+- `R2_BUCKET_NAME`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+
+If you use Docker Compose, place these values in `.env`. The compose app service now passes them through to the container automatically.
+
+Recommended defaults for the first rollout:
+
+- `FILE_UPLOAD_URL_TTL_SECONDS=300`
+- `FILE_DOWNLOAD_URL_TTL_SECONDS=60`
+- `FILE_RETENTION_MINUTES=60`
+- `FILE_RETENTION_MIN_MINUTES=5`
+- `FILE_RETENTION_MAX_MINUTES=1440`
+- `FILE_MAX_BYTES=26214400`
+
+Recommended R2 bucket CORS policy for browser-based presigned uploads:
+
+```json
+[
+	{
+		"AllowedOrigins": [
+			"http://localhost:8080",
+			"https://share.example.com"
+		],
+		"AllowedMethods": ["GET", "PUT", "HEAD"],
+		"AllowedHeaders": ["Content-Type"],
+		"ExposeHeaders": ["ETag", "Content-Length"],
+		"MaxAgeSeconds": 3600
+	}
+]
+```
+
+Important notes:
+
+- `AllowedOrigins` must be exact origins only, such as `http://localhost:8080` or `https://share.example.com`. Do not include a path like `/connect` or a trailing slash.
+- `PUT` is required for browser uploads to the presigned URL.
+- `GET` is useful for browser-side access and future debugging checks.
+- `HEAD` is safe to include and aligns with object metadata checks.
+- If you change the bucket CORS policy on a live domain, allow a short propagation window before retesting.
+
 ## Environment variables
 
 | Variable | Required | Purpose |
@@ -125,14 +180,26 @@ If your app is exposed behind a reverse proxy or public domain, also set `PUBLIC
 | `PUBLIC_BASE_URL` | No | Optional public origin used for QR links, such as `https://demo.example.com`. Leave blank to derive from the incoming request. |
 | `BASE_PATH` | No | Optional deployment subpath, such as `/sent-url`. |
 | `SESSION_TTL_MINUTES` | No | Session lifetime before the token expires. |
+| `FILE_STORAGE_DRIVER` | No | Set to `r2` to enable temporary file sharing. Default is disabled until R2 credentials are present. |
+| `FILE_MAX_BYTES` | No | Maximum file size accepted by the temporary file flow. |
+| `FILE_RETENTION_MINUTES` | No | Default lifetime for new shares. |
+| `FILE_RETENTION_MIN_MINUTES` | No | Minimum allowed share lifetime in minutes. |
+| `FILE_RETENTION_MAX_MINUTES` | No | Maximum allowed share lifetime in minutes. |
+| `FILE_UPLOAD_URL_TTL_SECONDS` | No | Lifetime of a presigned direct-upload URL. |
+| `FILE_DOWNLOAD_URL_TTL_SECONDS` | No | Lifetime of a presigned download URL created on demand. |
 | `DB_HOST` | Yes | MySQL host. Defaults to the bundled `db` service for local Docker startup. |
 | `DB_PORT` | No | MySQL port. Default is `3306`. |
 | `DB_USER` | Yes | MySQL user. |
 | `DB_PASSWORD` | Yes | MySQL password. |
 | `DB_NAME` | Yes | MySQL database name. |
 | `DB_TABLE` | No | Session table name. Default is `relay_sessions`. |
+| `DB_SHARE_TABLE` | No | Share item table name. Default is `share_items`. |
 | `DB_CONNECT_RETRIES` | No | Startup retry count while waiting for MySQL. |
 | `DB_CONNECT_RETRY_MS` | No | Delay between startup retry attempts. |
+| `R2_ACCOUNT_ID` | No | Cloudflare account ID used for the R2 S3 endpoint. Required for file sharing. |
+| `R2_BUCKET_NAME` | No | Bucket name used for temporary file objects. Required for file sharing. |
+| `R2_ACCESS_KEY_ID` | No | R2 API access key for presigned upload/download generation. Required for file sharing. |
+| `R2_SECRET_ACCESS_KEY` | No | R2 API secret key for presigned upload/download generation. Required for file sharing. |
 
 For bundled local MySQL, these values also matter:
 
@@ -165,27 +232,73 @@ npm start
 
 5. Open `http://localhost:8080/`.
 
+## R2 verification flow
+
+Use this checklist after you configure the R2 variables.
+
+1. Copy `.env.example` to `.env` if needed, then fill in `FILE_STORAGE_DRIVER=r2` and the `R2_*` credentials.
+2. Start or rebuild the stack:
+
+```bash
+docker compose up -d --build
+```
+
+3. Confirm the runtime sees storage enabled:
+
+```bash
+curl http://localhost:8080/health
+```
+
+You should see `"storage": { "enabled": true, ... }` in the JSON response.
+
+4. Open the receiver page, scan the QR code, choose `File`, and upload a small test file.
+5. Confirm the receiver inbox shows the file card and the download works.
+6. For a quick expiry test, temporarily lower the retention window and cleanup interval in `.env`, rebuild, then verify the file eventually shows as expired and the app logs do not report deletion failures.
+
+Useful temporary values for a short expiry test:
+
+- `FILE_RETENTION_MIN_MINUTES=1`
+- `FILE_RETENTION_MINUTES=1`
+- `FILE_RETENTION_MAX_MINUTES=10`
+- `CLEANUP_INTERVAL_MS=15000`
+
+When debugging upload failures, inspect the browser network tab first. The most common cause is an R2 CORS rule that does not exactly match your app origin.
+
 ## Verification checklist
 
 - Open the display page and confirm a token and QR code appear.
 - Open the mobile page and verify the token is accepted.
-- Submit a valid `http` or `https` URL and confirm the display redirects.
+- Send a valid `http` or `https` URL and confirm it appears in the receiver inbox.
+- Send a short note and confirm it appears in the receiver inbox.
+- If R2 is configured, upload a file and confirm the receiver can download it before expiry.
 - Submit an invalid token or invalid URL and confirm the UI shows a controlled error.
 - Change `BASE_PATH` and confirm routes and QR links still work.
 - Change `PUBLIC_BASE_URL` and confirm generated QR links reflect the new public host.
 
 ## Future upgrades already considered
 
-- Downloadable file handoff can be added on top of the generic session model.
-- The repository and payload structure can evolve into richer transfer types without splitting the app by feature.
+- Manual revoke for file shares can be added on top of the current share-item model.
+- Device naming and recent share history can be added without splitting the app by feature.
 - The UI is designed so more actions, status states, and session metadata can be added without a full redesign.
 
 ## Testing
 
-Run the lightweight regression tests with:
+Run the lightweight unit regression tests with:
 
 ```bash
 npm test
+```
+
+Run the live end-to-end flow against a running app with:
+
+```bash
+npm run test:e2e
+```
+
+If you want both unit and integration suites in one command, use:
+
+```bash
+npm run test:all
 ```
 
 ## License

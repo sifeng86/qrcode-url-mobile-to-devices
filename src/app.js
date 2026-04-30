@@ -8,7 +8,17 @@ const QRCode = require('qrcode');
 const { resolvePublicOrigin, withBasePath } = require('./config');
 const { loadTemplates, renderTemplate } = require('./render');
 const { createSessionRepository } = require('./repository');
-const { normalizeUrl, validateToken, ValidationError } = require('./validation');
+const { createStorageService, StorageUnavailableError } = require('./storage');
+const {
+  normalizeNoteText,
+  normalizeShareType,
+  normalizeUrl,
+  validateFileMetadata,
+  validateRetentionMinutes,
+  validateShareId,
+  validateToken,
+  ValidationError
+} = require('./validation');
 
 const brand = {
   mark: 'SL',
@@ -16,7 +26,7 @@ const brand = {
 };
 
 const shareCard = {
-  alt: 'Sendline preview card for sending URLs across devices',
+  alt: 'Sendline preview card for temporary sharing across devices',
   path: '/social-card.svg'
 };
 
@@ -46,8 +56,8 @@ function createHomeStructuredData({ canonicalUrl, description, imageUrl }) {
       description,
       featureList: [
         'Open a receiver screen and generate a QR code instantly.',
-        'Scan the QR code on your phone and paste any http or https URL.',
-        'Open that URL on the other device without sign-up or login.'
+        'Send links, notes, or temporary files from your phone to another device.',
+        'Keep file downloads short-lived with configurable expiration and cleanup.'
       ],
       image: imageUrl,
       name: brand.name,
@@ -60,12 +70,12 @@ function createHomeStructuredData({ canonicalUrl, description, imageUrl }) {
       description,
       image: imageUrl,
       inLanguage: 'en',
-      name: `How to send a URL from your phone to another device with ${brand.name}`,
+      name: `How to send a share from your phone to another device with ${brand.name}`,
       step: [
         {
           '@type': 'HowToStep',
           name: 'Open the receiver screen',
-          text: `Open ${brand.name} on the device that should receive the URL.`
+          text: `Open ${brand.name} on the device that should receive the next share.`
         },
         {
           '@type': 'HowToStep',
@@ -74,8 +84,8 @@ function createHomeStructuredData({ canonicalUrl, description, imageUrl }) {
         },
         {
           '@type': 'HowToStep',
-          name: 'Paste and send the URL',
-          text: 'Paste any valid http or https URL and send it so the other device opens it.'
+          name: 'Choose what to send',
+          text: 'Send a link, a note, or a temporary file to the other device.'
         }
       ],
       supply: [
@@ -104,18 +114,18 @@ function createHomeStructuredData({ canonicalUrl, description, imageUrl }) {
         },
         {
           '@type': 'Question',
-          name: 'What kind of links can I send?',
+          name: 'What can I send?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: `${brand.name} accepts standard http and https URLs and opens them on the receiver device.`
+            text: `${brand.name} can send links, short notes, and temporary file deliveries when file storage is configured.`
           }
         },
         {
           '@type': 'Question',
-          name: 'Does the receiver page need to stay open?',
+          name: 'Do shared files expire?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Yes. Leave the receiver page open until the URL is sent, then the device will redirect to the new page.'
+            text: 'Yes. File shares use configurable retention and are deleted after expiry by the cleanup worker.'
           }
         }
       ]
@@ -161,10 +171,109 @@ function isExpiredSession(session) {
   return Boolean(session && session.expiresAt && session.expiresAt.getTime() <= Date.now());
 }
 
+function isExpiredShareItem(shareItem) {
+  return Boolean(shareItem && shareItem.availableUntil && shareItem.availableUntil.getTime() <= Date.now());
+}
+
 function wait(delayMs) {
   return new Promise((resolve) => {
     setTimeout(resolve, delayMs);
   });
+}
+
+function createRateLimiter({ windowMs, maxRequests, code, message }) {
+  const hitMap = new Map();
+  const cleanupTimer = setInterval(() => {
+    const now = Date.now();
+
+    for (const [key, entry] of hitMap.entries()) {
+      if (entry.resetAt <= now) {
+        hitMap.delete(key);
+      }
+    }
+  }, Math.max(windowMs, 15000));
+  cleanupTimer.unref();
+
+  return (request, response, next) => {
+    const key = `${request.ip || request.socket.remoteAddress || 'unknown'}:${request.path}`;
+    const now = Date.now();
+    const entry = hitMap.get(key);
+
+    if (!entry || entry.resetAt <= now) {
+      hitMap.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    if (entry.count >= maxRequests) {
+      response.set('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
+      return response.status(429).json({
+        ok: false,
+        code,
+        message
+      });
+    }
+
+    entry.count += 1;
+    return next();
+  };
+}
+
+function createAvailableUntil(retentionMinutes) {
+  return new Date(Date.now() + (retentionMinutes * 60 * 1000));
+}
+
+function toIso(value) {
+  return value instanceof Date ? value.toISOString() : null;
+}
+
+function buildShareDownloadPath(config, shareItem) {
+  const params = new URLSearchParams({ token: shareItem.sessionToken });
+  return `${withBasePath(config, `/api/shares/${shareItem.id}/download`)}?${params.toString()}`;
+}
+
+function buildShareSummary(config, shareItem) {
+  const payload = shareItem.payloadJson || {};
+  const expired = isExpiredShareItem(shareItem) || ['expired', 'deleted'].includes(shareItem.status);
+  const summary = {
+    id: shareItem.id,
+    shareType: shareItem.shareType,
+    status: expired && shareItem.status === 'delivered' ? 'expired' : shareItem.status,
+    availableUntil: toIso(shareItem.availableUntil),
+    createdAt: toIso(shareItem.createdAt),
+    firstDownloadedAt: toIso(shareItem.firstDownloadedAt),
+    isExpired: expired
+  };
+
+  if (shareItem.shareType === 'note') {
+    return {
+      ...summary,
+      text: payload.text || '',
+      preview: String(payload.text || '').slice(0, 180)
+    };
+  }
+
+  if (shareItem.shareType === 'file') {
+    return {
+      ...summary,
+      contentType: shareItem.contentType || payload.contentType || 'application/octet-stream',
+      downloadPath: expired || shareItem.status !== 'delivered'
+        ? null
+        : buildShareDownloadPath(config, shareItem),
+      fileName: shareItem.originalFilename || payload.fileName || 'download.bin',
+      fileSize: shareItem.fileSize || payload.fileSize || null
+    };
+  }
+
+  return {
+    ...summary,
+    url: payload.url || null
+  };
+}
+
+function buildVisibleShares(config, shareItems) {
+  return shareItems
+    .filter((shareItem) => shareItem.status !== 'pending_upload')
+    .map((shareItem) => buildShareSummary(config, shareItem));
 }
 
 async function createApp(config) {
@@ -178,11 +287,24 @@ async function createApp(config) {
     }
   });
   const repository = createSessionRepository(config.database);
+  const storage = createStorageService(config);
   const templates = loadTemplates(config.rootDir);
+  const shareMutationLimiter = createRateLimiter({
+    windowMs: 60000,
+    maxRequests: 24,
+    code: 'RATE_LIMITED',
+    message: 'Too many share requests have been sent. Try again in a moment.'
+  });
+  const fileDownloadLimiter = createRateLimiter({
+    windowMs: 60000,
+    maxRequests: 60,
+    code: 'DOWNLOAD_RATE_LIMITED',
+    message: 'Too many download requests have been made. Try again in a moment.'
+  });
 
   app.set('trust proxy', true);
   app.disable('x-powered-by');
-  app.use(express.json({ limit: '32kb' }));
+  app.use(express.json({ limit: '128kb' }));
   app.use(express.urlencoded({ extended: false }));
 
   async function initializeDataStore() {
@@ -203,10 +325,27 @@ async function createApp(config) {
 
   await initializeDataStore();
 
-  const cleanupTimer = setInterval(() => {
-    repository.cleanupExpiredSessions().catch((error) => {
-      console.error('Failed to cleanup expired sessions:', error.message);
-    });
+  const cleanupTimer = setInterval(async () => {
+    try {
+      await repository.expireReadyShareItems();
+
+      if (storage.isReady()) {
+        const expiredFileShares = await repository.findExpiredFileSharesForDeletion();
+
+        for (const shareItem of expiredFileShares) {
+          try {
+            await storage.deleteObject(shareItem.objectKey);
+            await repository.markShareDeleted(shareItem.id);
+          } catch (error) {
+            console.error(`Failed to delete expired file share ${shareItem.id}:`, error.message);
+          }
+        }
+      }
+
+      await repository.cleanupExpiredSessions();
+    } catch (error) {
+      console.error('Failed to cleanup expired data:', error.message);
+    }
   }, config.cleanupIntervalMs);
   cleanupTimer.unref();
 
@@ -214,12 +353,25 @@ async function createApp(config) {
     return {
       basePath: config.basePath,
       publicAppUrl: `${resolvePublicOrigin(config, requestLike)}${config.basePath}`,
+      shareTypes: ['link', 'note', 'file'],
       socketPath: config.socketPath,
+      storage: {
+        enabled: storage.isReady(),
+        maxFileBytes: config.storage.maxFileBytes,
+        defaultRetentionMinutes: config.storage.defaultRetentionMinutes,
+        minRetentionMinutes: config.storage.minRetentionMinutes,
+        maxRetentionMinutes: config.storage.maxRetentionMinutes,
+        retentionOptions: config.storage.retentionOptions,
+        downloadUrlTtlSeconds: config.storage.downloadUrlTtlSeconds
+      },
       routes: {
         home: withBasePath(config, '/'),
         connect: withBasePath(config, '/connect'),
         session: withBasePath(config, '/api/session'),
         relay: withBasePath(config, '/api/relay'),
+        sessionShares: withBasePath(config, '/api/session'),
+        filePrepare: withBasePath(config, '/api/files/prepare'),
+        fileFinalize: withBasePath(config, '/api/files/finalize'),
         health: withBasePath(config, '/health')
       }
     };
@@ -288,12 +440,61 @@ async function createApp(config) {
     });
   }
 
+  async function resolveSession(token, response, { requireActiveDisplay = false } = {}) {
+    const session = await repository.getSessionByToken(token);
+
+    if (!session) {
+      sendProblem(response, 404, 'SESSION_NOT_FOUND', 'This session token does not exist.');
+      return null;
+    }
+
+    if (isExpiredSession(session)) {
+      await repository.markExpired(token);
+      sendProblem(response, 410, 'SESSION_EXPIRED', 'This session has expired. Generate a new QR code on the display.');
+      return null;
+    }
+
+    if (requireActiveDisplay && !session.displaySocketId) {
+      sendProblem(response, 409, 'DISPLAY_OFFLINE', 'The display session is offline. Refresh the display and try again.');
+      return null;
+    }
+
+    return session;
+  }
+
+  async function resolveShareItem(token, shareId, response) {
+    const shareItem = await repository.getShareItemById(shareId);
+
+    if (!shareItem || shareItem.sessionToken !== token) {
+      sendProblem(response, 404, 'SHARE_NOT_FOUND', 'This share item does not exist.');
+      return null;
+    }
+
+    if (isExpiredShareItem(shareItem) && shareItem.status !== 'deleted') {
+      await repository.markShareExpired(shareId);
+      sendProblem(response, 410, 'SHARE_EXPIRED', 'This share is no longer available.');
+      return null;
+    }
+
+    if (shareItem.status === 'deleted') {
+      sendProblem(response, 410, 'SHARE_DELETED', 'This share is no longer available.');
+      return null;
+    }
+
+    return shareItem;
+  }
+
   async function healthHandler(request, response) {
     const health = await repository.ping();
 
     response.set('X-Robots-Tag', 'noindex, nofollow, noarchive').status(health.ok ? 200 : 503).json({
       ok: health.ok,
       database: health.database,
+      storage: {
+        driver: config.storage.driver,
+        enabled: storage.isReady(),
+        bucketConfigured: Boolean(config.storage.r2.bucketName)
+      },
       basePath: config.basePath || '/',
       environment: config.environment,
       timestamp: new Date().toISOString()
@@ -315,7 +516,6 @@ async function createApp(config) {
     }
 
     lines.push('', `Sitemap: ${sitemapUrl}`);
-
     response.type('text/plain').send(lines.join('\n'));
   }
 
@@ -340,7 +540,7 @@ async function createApp(config) {
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
   <title id="title">${brand.name}</title>
-  <desc id="desc">Send a URL from your phone to another device instantly.</desc>
+  <desc id="desc">Share links, notes, and temporary files across devices.</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0%" stop-color="#0f172a"/>
@@ -358,8 +558,8 @@ async function createApp(config) {
   <rect x="96" y="102" width="110" height="110" rx="28" fill="#f8fafc" fill-opacity="0.16"/>
   <text x="151" y="170" text-anchor="middle" font-family="Sora, Arial, sans-serif" font-size="42" font-weight="700" fill="#f8fafc">${brand.mark}</text>
   <text x="96" y="286" font-family="Sora, Arial, sans-serif" font-size="72" font-weight="700" fill="#f8fafc">${brand.name}</text>
-  <text x="96" y="356" font-family="Sora, Arial, sans-serif" font-size="34" fill="#dbeafe">Send URLs from your phone to another device</text>
-  <text x="96" y="404" font-family="Sora, Arial, sans-serif" font-size="34" fill="#dbeafe">instantly with a QR code and no login.</text>
+  <text x="96" y="356" font-family="Sora, Arial, sans-serif" font-size="34" fill="#dbeafe">Send links, notes, and temporary files</text>
+  <text x="96" y="404" font-family="Sora, Arial, sans-serif" font-size="34" fill="#dbeafe">from your phone to another device.</text>
   <text x="96" y="500" font-family="IBM Plex Mono, monospace" font-size="24" fill="#bfdbfe">${homepageUrl}</text>
 </svg>`;
 
@@ -370,19 +570,10 @@ async function createApp(config) {
     try {
       response.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
       const token = validateToken(request.params.token);
-      const session = await repository.getSessionByToken(token);
+      const session = await resolveSession(token, response, { requireActiveDisplay: true });
 
       if (!session) {
-        return sendProblem(response, 404, 'SESSION_NOT_FOUND', 'This session token does not exist.');
-      }
-
-      if (isExpiredSession(session)) {
-        await repository.markExpired(token);
-        return sendProblem(response, 410, 'SESSION_EXPIRED', 'This session has expired. Generate a new QR code on the display.');
-      }
-
-      if (!session.displaySocketId) {
-        return sendProblem(response, 409, 'DISPLAY_OFFLINE', 'The display session is no longer connected.');
+        return;
       }
 
       return response.json({
@@ -390,9 +581,10 @@ async function createApp(config) {
         session: {
           token: session.token,
           status: session.status,
-          expiresAt: session.expiresAt ? session.expiresAt.toISOString() : null,
+          expiresAt: toIso(session.expiresAt),
           payloadType: session.payloadType,
-          hasActiveDisplay: Boolean(session.displaySocketId)
+          hasActiveDisplay: Boolean(session.displaySocketId),
+          storageEnabled: storage.isReady()
         }
       });
     } catch (error) {
@@ -405,49 +597,287 @@ async function createApp(config) {
     }
   }
 
-  async function relayHandler(request, response) {
+  async function sessionSharesHandler(request, response) {
     try {
       response.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
-      const token = validateToken(request.body.token);
-      const normalizedUrl = normalizeUrl(request.body.url);
-      const session = await repository.getSessionByToken(token);
+      const token = validateToken(request.params.token);
+      const session = await resolveSession(token, response);
 
       if (!session) {
-        return sendProblem(response, 404, 'SESSION_NOT_FOUND', 'This session token does not exist.');
+        return;
       }
 
-      if (isExpiredSession(session)) {
-        await repository.markExpired(token);
-        return sendProblem(response, 410, 'SESSION_EXPIRED', 'This session has expired. Generate a new QR code on the display.');
-      }
-
-      if (!session.displaySocketId) {
-        return sendProblem(response, 409, 'DISPLAY_OFFLINE', 'The display session is offline. Refresh the display and try again.');
-      }
-
-      const updatedSession = await repository.saveUrlDelivery(token, normalizedUrl);
-
-      io.to(session.displaySocketId).emit('relay:deliver', {
-        token,
-        url: normalizedUrl,
-        deliveredAt: updatedSession && updatedSession.deliveredAt
-          ? updatedSession.deliveredAt.toISOString()
-          : new Date().toISOString()
-      });
-
+      const shareItems = await repository.listSharesBySessionToken(token, 24);
       return response.json({
         ok: true,
-        token,
-        url: normalizedUrl,
-        message: 'The display is redirecting now.'
+        shares: buildVisibleShares(config, shareItems)
       });
     } catch (error) {
       if (error instanceof ValidationError) {
         return sendProblem(response, 400, error.code, error.message);
       }
 
-      console.error('Failed to relay URL:', error);
-      return sendProblem(response, 500, 'RELAY_FAILED', 'Unable to deliver the URL right now.');
+      console.error('Failed to list shares:', error);
+      return sendProblem(response, 500, 'SHARE_LIST_FAILED', 'Unable to load recent shares right now.');
+    }
+  }
+
+  async function relayHandler(request, response) {
+    try {
+      response.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+      const token = validateToken(request.body.token);
+      const shareType = normalizeShareType(request.body.shareType || (request.body.text ? 'note' : 'link'));
+      const retentionMinutes = validateRetentionMinutes(request.body.retentionMinutes, config.storage);
+      const session = await resolveSession(token, response, { requireActiveDisplay: true });
+
+      if (!session) {
+        return;
+      }
+
+      const availableUntil = createAvailableUntil(retentionMinutes);
+      let shareItem;
+      let payloadJson;
+      let message;
+
+      if (shareType === 'note') {
+        payloadJson = { text: normalizeNoteText(request.body.text) };
+        shareItem = await repository.createShareItem({
+          sessionToken: token,
+          shareType: 'note',
+          payloadJson,
+          availableUntil
+        });
+        await repository.saveSessionDelivery(token, {
+          payloadType: 'note',
+          payloadJson
+        });
+        message = 'The note is ready on the receiver.';
+      } else {
+        payloadJson = { url: normalizeUrl(request.body.url) };
+        shareItem = await repository.createShareItem({
+          sessionToken: token,
+          shareType: 'link',
+          payloadJson,
+          availableUntil
+        });
+        await repository.saveSessionDelivery(token, {
+          targetUrl: payloadJson.url,
+          payloadType: 'link',
+          payloadJson
+        });
+        message = 'The link is ready on the receiver.';
+      }
+
+      const shareSummary = buildShareSummary(config, shareItem);
+      io.to(session.displaySocketId).emit('share:received', shareSummary);
+
+      return response.json({
+        ok: true,
+        message,
+        share: shareSummary,
+        url: shareSummary.url || null
+      });
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        return sendProblem(response, 400, error.code, error.message);
+      }
+
+      console.error('Failed to deliver share:', error);
+      return sendProblem(response, 500, 'RELAY_FAILED', 'Unable to deliver this share right now.');
+    }
+  }
+
+  async function prepareFileHandler(request, response) {
+    try {
+      response.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+
+      if (!storage.isReady()) {
+        return sendProblem(response, 503, 'FILE_STORAGE_UNAVAILABLE', 'File sharing is not configured on this server yet.');
+      }
+
+      const token = validateToken(request.body.token);
+      const session = await resolveSession(token, response, { requireActiveDisplay: true });
+
+      if (!session) {
+        return;
+      }
+
+      const retentionMinutes = validateRetentionMinutes(request.body.retentionMinutes, config.storage);
+      const fileMetadata = validateFileMetadata(request.body, config.storage);
+      const objectKey = storage.createObjectKey(token, fileMetadata.fileName);
+      const uploadPlan = await storage.createUploadPlan({
+        objectKey,
+        contentType: fileMetadata.contentType
+      });
+      const availableUntil = createAvailableUntil(retentionMinutes);
+      const shareItem = await repository.createShareItem({
+        sessionToken: token,
+        shareType: 'file',
+        status: 'pending_upload',
+        payloadJson: {
+          fileName: fileMetadata.fileName,
+          contentType: fileMetadata.contentType,
+          fileSize: fileMetadata.fileSize
+        },
+        objectKey,
+        originalFilename: fileMetadata.fileName,
+        contentType: fileMetadata.contentType,
+        fileSize: fileMetadata.fileSize,
+        availableUntil
+      });
+
+      return response.json({
+        ok: true,
+        shareId: shareItem.id,
+        share: buildShareSummary(config, shareItem),
+        upload: {
+          url: uploadPlan.url,
+          method: uploadPlan.method,
+          headers: uploadPlan.headers,
+          expiresAt: toIso(uploadPlan.expiresAt)
+        }
+      });
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        return sendProblem(response, 400, error.code, error.message);
+      }
+
+      if (error instanceof StorageUnavailableError) {
+        return sendProblem(response, 503, 'FILE_STORAGE_UNAVAILABLE', error.message);
+      }
+
+      console.error('Failed to prepare file upload:', error);
+      return sendProblem(response, 500, 'FILE_PREPARE_FAILED', 'Unable to prepare this file upload right now.');
+    }
+  }
+
+  async function finalizeFileHandler(request, response) {
+    try {
+      response.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+
+      if (!storage.isReady()) {
+        return sendProblem(response, 503, 'FILE_STORAGE_UNAVAILABLE', 'File sharing is not configured on this server yet.');
+      }
+
+      const token = validateToken(request.body.token);
+      const shareId = validateShareId(request.body.shareId);
+      const session = await resolveSession(token, response, { requireActiveDisplay: true });
+
+      if (!session) {
+        return;
+      }
+
+      const shareItem = await resolveShareItem(token, shareId, response);
+
+      if (!shareItem) {
+        return;
+      }
+
+      if (shareItem.shareType !== 'file') {
+        return sendProblem(response, 400, 'INVALID_SHARE_TYPE', 'This share item is not a file upload.');
+      }
+
+      if (shareItem.status === 'delivered') {
+        return response.json({
+          ok: true,
+          message: 'This file has already been finalized.',
+          share: buildShareSummary(config, shareItem)
+        });
+      }
+
+      if (shareItem.status !== 'pending_upload') {
+        return sendProblem(response, 409, 'UPLOAD_STATE_INVALID', 'This file upload can no longer be finalized.');
+      }
+
+      try {
+        await storage.ensureObjectReady({
+          objectKey: shareItem.objectKey,
+          fileSize: shareItem.fileSize,
+          contentType: shareItem.contentType
+        });
+      } catch (error) {
+        return sendProblem(response, 409, 'UPLOAD_NOT_READY', error.message || 'The uploaded file could not be verified yet.');
+      }
+
+      const payloadJson = {
+        fileName: shareItem.originalFilename,
+        contentType: shareItem.contentType,
+        fileSize: shareItem.fileSize
+      };
+      const deliveredShare = await repository.markShareDelivered(shareItem.id, payloadJson);
+      await repository.saveSessionDelivery(token, {
+        payloadType: 'file',
+        payloadJson: {
+          shareId: deliveredShare.id,
+          ...payloadJson
+        }
+      });
+
+      const shareSummary = buildShareSummary(config, deliveredShare);
+      io.to(session.displaySocketId).emit('share:received', shareSummary);
+
+      return response.json({
+        ok: true,
+        message: 'The file is ready on the receiver.',
+        share: shareSummary
+      });
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        return sendProblem(response, 400, error.code, error.message);
+      }
+
+      if (error instanceof StorageUnavailableError) {
+        return sendProblem(response, 503, 'FILE_STORAGE_UNAVAILABLE', error.message);
+      }
+
+      console.error('Failed to finalize file upload:', error);
+      return sendProblem(response, 500, 'FILE_FINALIZE_FAILED', 'Unable to finalize this file upload right now.');
+    }
+  }
+
+  async function downloadShareHandler(request, response) {
+    try {
+      response.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+
+      if (!storage.isReady()) {
+        return sendProblem(response, 503, 'FILE_STORAGE_UNAVAILABLE', 'File sharing is not configured on this server yet.');
+      }
+
+      const token = validateToken(request.query.token);
+      const shareId = validateShareId(request.params.shareId);
+      const shareItem = await resolveShareItem(token, shareId, response);
+
+      if (!shareItem) {
+        return;
+      }
+
+      if (shareItem.shareType !== 'file') {
+        return sendProblem(response, 400, 'INVALID_SHARE_TYPE', 'Only file shares can be downloaded from this endpoint.');
+      }
+
+      if (shareItem.status !== 'delivered') {
+        return sendProblem(response, 410, 'SHARE_UNAVAILABLE', 'This file is no longer available.');
+      }
+
+      const downloadPlan = await storage.createDownloadUrl({
+        objectKey: shareItem.objectKey,
+        fileName: shareItem.originalFilename,
+        contentType: shareItem.contentType
+      });
+
+      await repository.markShareDownloaded(shareId);
+      return response.redirect(downloadPlan.url);
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        return sendProblem(response, 400, error.code, error.message);
+      }
+
+      if (error instanceof StorageUnavailableError) {
+        return sendProblem(response, 503, 'FILE_STORAGE_UNAVAILABLE', error.message);
+      }
+
+      console.error('Failed to create download URL:', error);
+      return sendProblem(response, 500, 'DOWNLOAD_FAILED', 'Unable to prepare this download right now.');
     }
   }
 
@@ -461,8 +891,8 @@ async function createApp(config) {
 
   router.get('/', (request, response) => {
     renderPage(response, 'display', request, {}, {
-      title: `${brand.name} | Send URLs Across Devices`,
-      description: 'Sendline lets you send a URL from your phone to another device instantly by scanning a QR code.',
+      title: `${brand.name} | Share Across Devices`,
+      description: 'Send links, notes, and temporary files from your phone to another device with a QR code.',
       pagePath: '/',
       structuredDataFactory: createHomeStructuredData,
       scriptName: 'display.js'
@@ -471,11 +901,12 @@ async function createApp(config) {
 
   router.get('/connect', (request, response) => {
     renderPage(response, 'connect', request, {
-      token: request.query.token ? String(request.query.token).trim() : ''
+      token: request.query.token ? String(request.query.token).trim() : '',
+      shareType: request.query.type ? String(request.query.type).trim() : 'link'
     }, {
-      title: `${brand.name} | Send a URL`,
+      title: `${brand.name} | Send a Share`,
       canonicalPath: '/connect',
-      description: 'Paste a URL on your phone and Sendline opens it on the other device linked to this session.',
+      description: 'Choose a link, note, or file on your phone and send it to the connected receiver.',
       pagePath: '/connect',
       robots: 'noindex, follow, noarchive',
       scriptName: 'connect.js'
@@ -484,11 +915,12 @@ async function createApp(config) {
 
   router.get('/scan', (request, response) => {
     renderPage(response, 'connect', request, {
-      token: request.query.token ? String(request.query.token).trim() : ''
+      token: request.query.token ? String(request.query.token).trim() : '',
+      shareType: request.query.type ? String(request.query.type).trim() : 'link'
     }, {
       title: `${brand.name} | Open the Sender`,
       canonicalPath: '/scan',
-      description: 'Open Sendline with a session code and send a URL to another device.',
+      description: 'Open Sendline with a session code and send a link, note, or temporary file to another device.',
       pagePath: '/scan',
       robots: 'noindex, follow, noarchive',
       scriptName: 'connect.js'
@@ -497,7 +929,11 @@ async function createApp(config) {
 
   router.get('/health', healthHandler);
   router.get('/api/session/:token', sessionLookupHandler);
-  router.post('/api/relay', relayHandler);
+  router.get('/api/session/:token/shares', sessionSharesHandler);
+  router.post('/api/relay', shareMutationLimiter, relayHandler);
+  router.post('/api/files/prepare', shareMutationLimiter, prepareFileHandler);
+  router.post('/api/files/finalize', shareMutationLimiter, finalizeFileHandler);
+  router.get('/api/shares/:shareId/download', fileDownloadLimiter, downloadShareHandler);
 
   if (config.basePath) {
     app.get('/robots.txt', robotsHandler);
@@ -542,7 +978,6 @@ async function createApp(config) {
     });
 
     socket.data.sessionToken = session.token;
-
     socket.emit('session:ready', {
       token: session.token,
       mobileUrl,

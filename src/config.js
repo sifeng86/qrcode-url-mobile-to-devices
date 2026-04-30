@@ -5,6 +5,28 @@ function parsePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseDriver(value, fallback) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized || fallback;
+}
+
+function clampWithinRange(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function createRetentionOptions(storageConfig) {
+  const defaults = [5, 15, 30, 60, 180, 720, 1440];
+  const allowed = defaults.filter((minutes) => {
+    return minutes >= storageConfig.minRetentionMinutes && minutes <= storageConfig.maxRetentionMinutes;
+  });
+
+  if (!allowed.includes(storageConfig.defaultRetentionMinutes)) {
+    allowed.push(storageConfig.defaultRetentionMinutes);
+  }
+
+  return Array.from(new Set(allowed)).sort((left, right) => left - right);
+}
+
 function normalizeBasePath(input = '') {
   const trimmed = String(input || '').trim();
 
@@ -60,6 +82,44 @@ function resolvePublicAppUrl(config, requestLike) {
 function createConfig(env = process.env) {
   const basePath = normalizeBasePath(env.BASE_PATH || '');
   const environment = env.NODE_ENV || 'development';
+  const hasR2Credentials = Boolean(
+    env.R2_ACCOUNT_ID
+    && env.R2_BUCKET_NAME
+    && env.R2_ACCESS_KEY_ID
+    && env.R2_SECRET_ACCESS_KEY
+  );
+  const requestedStorageDriver = parseDriver(env.FILE_STORAGE_DRIVER, hasR2Credentials ? 'r2' : 'disabled');
+  const storageDriver = requestedStorageDriver === 'r2' && hasR2Credentials
+    ? 'r2'
+    : requestedStorageDriver === 'disabled'
+      ? 'disabled'
+      : 'disabled';
+  const minRetentionMinutes = parsePositiveInteger(env.FILE_RETENTION_MIN_MINUTES, 5);
+  const maxRetentionMinutes = Math.max(minRetentionMinutes, parsePositiveInteger(env.FILE_RETENTION_MAX_MINUTES, 1440));
+  const defaultRetentionMinutes = clampWithinRange(
+    parsePositiveInteger(env.FILE_RETENTION_MINUTES, 60),
+    minRetentionMinutes,
+    maxRetentionMinutes
+  );
+  const storage = {
+    driver: storageDriver,
+    enabled: storageDriver === 'r2',
+    maxFileBytes: parsePositiveInteger(env.FILE_MAX_BYTES, 25 * 1024 * 1024),
+    uploadUrlTtlSeconds: parsePositiveInteger(env.FILE_UPLOAD_URL_TTL_SECONDS, 300),
+    downloadUrlTtlSeconds: parsePositiveInteger(env.FILE_DOWNLOAD_URL_TTL_SECONDS, 60),
+    defaultRetentionMinutes,
+    minRetentionMinutes,
+    maxRetentionMinutes,
+    retentionOptions: [],
+    r2: {
+      accountId: String(env.R2_ACCOUNT_ID || '').trim(),
+      bucketName: String(env.R2_BUCKET_NAME || '').trim(),
+      accessKeyId: String(env.R2_ACCESS_KEY_ID || '').trim(),
+      secretAccessKey: String(env.R2_SECRET_ACCESS_KEY || '').trim()
+    }
+  };
+
+  storage.retentionOptions = createRetentionOptions(storage);
 
   return {
     environment,
@@ -73,13 +133,15 @@ function createConfig(env = process.env) {
     cleanupIntervalMs: parsePositiveInteger(env.CLEANUP_INTERVAL_MS, 300000),
     dbConnectRetries: parsePositiveInteger(env.DB_CONNECT_RETRIES, 20),
     dbConnectRetryMs: parsePositiveInteger(env.DB_CONNECT_RETRY_MS, 3000),
+    storage,
     database: {
       host: env.DB_HOST || 'db',
       port: parsePositiveInteger(env.DB_PORT, 3306),
       user: env.DB_USER || 'qrcode',
       password: env.DB_PASSWORD || 'qrcode_password',
       name: env.DB_NAME || 'qrcode_relay',
-      tableName: env.DB_TABLE || 'relay_sessions'
+      tableName: env.DB_TABLE || 'relay_sessions',
+      shareTableName: env.DB_SHARE_TABLE || 'share_items'
     }
   };
 }
@@ -88,6 +150,7 @@ module.exports = {
   createConfig,
   normalizeBasePath,
   normalizePublicBaseUrl,
+  createRetentionOptions,
   resolvePublicAppUrl,
   resolvePublicOrigin,
   resolveRequestOrigin,

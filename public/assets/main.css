@@ -51,7 +51,9 @@ img {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -397,7 +399,29 @@ input {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.text-field:focus {
+.text-area {
+  width: 100%;
+  min-height: 9rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--text);
+  resize: vertical;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.select-field {
+  appearance: none;
+  cursor: pointer;
+}
+
+.file-field {
+  padding-block: 0.8rem;
+}
+
+.text-field:focus,
+.text-area:focus {
   outline: none;
   border-color: rgba(15, 118, 110, 0.5);
   box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
@@ -492,6 +516,149 @@ input {
   display: grid;
   gap: 0.85rem;
   margin-top: 1.2rem;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.segmented-option {
+  position: relative;
+  display: block;
+}
+
+.segmented-option input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.segmented-option span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.2rem;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--muted);
+  font-weight: 600;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.segmented-option input:checked + span {
+  border-color: rgba(15, 118, 110, 0.24);
+  background: rgba(215, 255, 244, 0.86);
+  color: var(--accent-strong);
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.segmented-option.is-disabled span,
+.segmented-option input:disabled + span {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.share-panel[hidden] {
+  display: none;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.toggle-row input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+}
+
+.inbox-panel {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.inbox-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.share-list {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.share-card {
+  padding: 1rem 1.05rem;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.06);
+}
+
+.share-card-head,
+.share-card-meta,
+.share-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.share-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.share-card p {
+  margin: 0.65rem 0 0;
+  color: var(--muted);
+  line-height: 1.68;
+}
+
+.share-card-note {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.share-card-meta {
+  margin-top: 0.8rem;
+}
+
+.share-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.share-card-actions {
+  margin-top: 0.95rem;
+}
+
+.share-card-actions .button {
+  min-height: 2.75rem;
+  padding: 0.7rem 1rem;
 }
 
 .page-connect {
@@ -811,7 +978,10 @@ input {
   .card-header,
   .action-row,
   .footer-note,
-  .field-row {
+  .field-row,
+  .inbox-head,
+  .share-card-head,
+  .share-card-actions {
     flex-direction: column;
     align-items: stretch;
   }
@@ -832,6 +1002,10 @@ input {
 
   .hero-pills {
     flex-direction: column;
+  }
+
+  .segmented-control {
+    grid-template-columns: 1fr;
   }
 
   .completion-toast {

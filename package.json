@@ -1,13 +1,14 @@
 {
   "name": "qrcode-url-mobile-to-devices",
   "version": "2.0.0",
-  "description": "Sendline lets you send a URL from your phone to another device with a QR code.",
+  "description": "Sendline lets you send links, notes, and temporary files from your phone to another device with a QR code.",
   "main": "server.js",
   "scripts": {
     "dev": "nodemon --legacy-watch",
     "start": "node server.js",
-    "test": "node --test",
-    "test:e2e": "node --test test/e2e.relay-flow.test.js"
+    "test": "node --test test/config.test.js test/validation.test.js",
+    "test:e2e": "node --test test/e2e.relay-flow.test.js",
+    "test:all": "node --test"
   },
   "keywords": [
     "qr-code",
@@ -19,6 +20,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.842.0",
+    "@aws-sdk/s3-request-presigner": "^3.842.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "mysql2": "^3.11.5",

@@ -5,11 +5,11 @@ const { setTimeout: delay } = require('node:timers/promises');
 const { io } = require('socket.io-client');
 
 const appUrl = process.env.TEST_APP_URL || 'http://127.0.0.1:8080';
-const socketPath = process.env.TEST_SOCKET_PATH || '/socket.io';
 const rawBasePath = String(process.env.TEST_BASE_PATH || '').trim();
 const testBasePath = rawBasePath
   ? `/${rawBasePath.replace(/^\/+|\/+$/g, '')}`
   : '';
+const socketPath = process.env.TEST_SOCKET_PATH || (testBasePath ? `${testBasePath}/socket.io` : '/socket.io');
 
 function escapeForRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -66,7 +66,7 @@ async function waitForCondition(checker, timeoutMs = 8000, intervalMs = 200) {
   throw new Error('Timed out waiting for expected condition.');
 }
 
-test('end-to-end relay flow behaves correctly', { timeout: 30000 }, async () => {
+test('end-to-end share flow behaves correctly', { timeout: 30000 }, async () => {
   const expectedHomeUrl = `${appUrl}${withBasePath('/')}`;
   const expectedConnectUrl = `${appUrl}${withBasePath('/connect')}`;
 
@@ -79,13 +79,13 @@ test('end-to-end relay flow behaves correctly', { timeout: 30000 }, async () => 
   const homeResponse = await fetch(`${appUrl}${withBasePath('/')}`);
   const homeHtml = await homeResponse.text();
   assert.equal(homeResponse.status, 200);
-  assert.match(homeHtml, /Sendline \| Send URLs Across Devices/);
+  assert.match(homeHtml, /Sendline \| Share Across Devices/);
   assert.match(homeHtml, /<meta name="robots" content="index, follow, max-image-preview:large">/);
   assert.match(homeHtml, new RegExp(`<link rel="canonical" href="${escapeForRegExp(expectedHomeUrl)}">`));
   assert.match(homeHtml, /<meta property="og:site_name" content="Sendline">/);
   assert.match(homeHtml, /FAQPage/);
   assert.match(homeHtml, /HowTo/);
-  assert.match(homeHtml, /Frequently asked questions/);
+  assert.match(homeHtml, /temporary files/);
 
   const robotsResponse = await fetch(`${appUrl}/robots.txt`);
   const robotsText = await robotsResponse.text();
@@ -126,16 +126,18 @@ test('end-to-end relay flow behaves correctly', { timeout: 30000 }, async () => 
     const connectResponse = await fetch(firstSession.mobileUrl);
     const connectHtml = await connectResponse.text();
     assert.equal(connectResponse.status, 200);
-    assert.match(connectHtml, /Sendline \| Send a URL/);
+    assert.match(connectHtml, /Sendline \| Send a Share/);
     assert.match(connectHtml, /<meta name="robots" content="noindex, follow, noarchive">/);
     assert.match(connectHtml, new RegExp(`<link rel="canonical" href="${escapeForRegExp(expectedConnectUrl)}">`));
     assert.match(connectHtml, new RegExp(firstSession.token));
+    assert.match(connectHtml, /Send a link, note, or file/);
 
     const lookupResult = await fetchJson(`${withBasePath('/api/session')}/${firstSession.token}`);
     assert.equal(lookupResult.response.status, 200);
     assert.equal(lookupResult.payload.ok, true);
     assert.equal(lookupResult.payload.session.token, firstSession.token);
     assert.equal(lookupResult.payload.session.hasActiveDisplay, true);
+    assert.equal(lookupResult.payload.session.storageEnabled, false);
 
     const invalidUrlResult = await fetchJson(withBasePath('/api/relay'), {
       method: 'POST',
@@ -150,7 +152,7 @@ test('end-to-end relay flow behaves correctly', { timeout: 30000 }, async () => 
     assert.equal(invalidUrlResult.response.status, 400);
     assert.equal(invalidUrlResult.payload.code, 'UNSUPPORTED_PROTOCOL');
 
-    const deliverPromise = waitForEvent(displaySocket, 'relay:deliver');
+    const deliverPromise = waitForEvent(displaySocket, 'share:received');
     const validRelayResult = await fetchJson(withBasePath('/api/relay'), {
       method: 'POST',
       headers: {
@@ -158,6 +160,8 @@ test('end-to-end relay flow behaves correctly', { timeout: 30000 }, async () => 
       },
       body: JSON.stringify({
         token: firstSession.token,
+        shareType: 'link',
+        retentionMinutes: 15,
         url: 'example.com/service-menu'
       })
     });
@@ -165,10 +169,54 @@ test('end-to-end relay flow behaves correctly', { timeout: 30000 }, async () => 
     assert.equal(validRelayResult.response.status, 200);
     assert.equal(validRelayResult.payload.ok, true);
     assert.equal(validRelayResult.payload.url, 'https://example.com/service-menu');
+    assert.equal(validRelayResult.payload.share.shareType, 'link');
 
     const deliveredEvent = await deliverPromise;
-    assert.equal(deliveredEvent.token, firstSession.token);
+    assert.equal(deliveredEvent.shareType, 'link');
     assert.equal(deliveredEvent.url, 'https://example.com/service-menu');
+
+    const notePromise = waitForEvent(displaySocket, 'share:received');
+    const noteRelayResult = await fetchJson(withBasePath('/api/relay'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        token: firstSession.token,
+        shareType: 'note',
+        retentionMinutes: 15,
+        text: 'Projector input is HDMI 2'
+      })
+    });
+
+    assert.equal(noteRelayResult.response.status, 200);
+    assert.equal(noteRelayResult.payload.share.shareType, 'note');
+
+    const noteEvent = await notePromise;
+    assert.equal(noteEvent.shareType, 'note');
+    assert.equal(noteEvent.text, 'Projector input is HDMI 2');
+
+    const listSharesResult = await fetchJson(`${withBasePath('/api/session')}/${firstSession.token}/shares`);
+    assert.equal(listSharesResult.response.status, 200);
+    assert.ok(listSharesResult.payload.shares.length >= 2);
+    assert.ok(listSharesResult.payload.shares.some((share) => share.shareType === 'link'));
+    assert.ok(listSharesResult.payload.shares.some((share) => share.shareType === 'note'));
+
+    const filePrepareResult = await fetchJson(withBasePath('/api/files/prepare'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        token: firstSession.token,
+        fileName: 'report.pdf',
+        fileSize: 1024,
+        contentType: 'application/pdf',
+        retentionMinutes: 15
+      })
+    });
+    assert.equal(filePrepareResult.response.status, 503);
+    assert.equal(filePrepareResult.payload.code, 'FILE_STORAGE_UNAVAILABLE');
 
     const refreshPromise = waitForEvent(displaySocket, 'session:ready');
     displaySocket.emit('display:refresh');

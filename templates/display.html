@@ -42,7 +42,7 @@
           <span class="brand-mark">__BRAND_MARK__</span>
           <span>
             <strong>__BRAND_NAME__</strong>
-            <small>Send URLs across devices</small>
+            <small>Temporary share hub</small>
           </span>
         </a>
         <div class="topbar-pill">No login required</div>
@@ -50,23 +50,16 @@
 
       <main class="layout display-layout" id="hero">
         <section class="hero-panel card card-hero">
-          <p class="eyebrow">Cross-device URL sender</p>
-          <h1>Push a URL from your phone to another device.</h1>
+          <p class="eyebrow">Cross-device sharing</p>
+          <h1>Send links, notes, and temporary files to this device.</h1>
           <p class="lead">
-            Open this page on the device you want to control.
-          </p>
-          
-          <p class="lead">
-            Scan the QR code with your phone.
-          </p>
-
-          <p class="lead">
-            Paste a URL, and this device opens it right away.
+            Open this page on the device you want to receive from. Scan the QR code with your phone,
+            choose what to send, and the receiver inbox updates in real time.
           </p>
 
           <div class="hero-pills" aria-label="Service highlights">
-            <span class="hero-pill">No sign up</span>
-            <span class="hero-pill">No app required</span>
+            <span class="hero-pill">Links, notes, and files</span>
+            <span class="hero-pill">Temporary downloads</span>
             <span class="hero-pill">Works in any modern browser</span>
           </div>
 
@@ -74,17 +67,17 @@
             <article class="feature-card">
               <span class="feature-index">01</span>
               <h2>Open the receiver screen</h2>
-              <p>Leave this page open on the device where you want the next URL to appear.</p>
+              <p>Leave this page open on the device that should receive your next share.</p>
             </article>
             <article class="feature-card">
               <span class="feature-index">02</span>
               <h2>Scan the QR code</h2>
-              <p>Use your phone or tablet to open the sender page linked to this session.</p>
+              <p>Use your phone to open the sender page linked to this active session.</p>
             </article>
             <article class="feature-card">
               <span class="feature-index">03</span>
-              <h2>Paste the URL</h2>
-              <p>Paste the page you want to share and this device opens it in a moment.</p>
+              <h2>Review the inbox</h2>
+              <p>Open links, copy notes, or download files directly from the receiver inbox.</p>
             </article>
           </div>
         </section>
@@ -93,13 +86,13 @@
           <div class="card-header">
             <div>
               <p class="eyebrow">Receiver screen</p>
-              <h2>Ready to receive the next URL</h2>
+              <h2>Ready to receive the next share</h2>
             </div>
             <div class="status-pill" id="connectionBadge" data-tone="neutral">Connecting</div>
           </div>
 
           <div class="status-line">
-            <p id="sessionStatusText">Creating a QR code so your phone can send a URL to this device.</p>
+            <p id="sessionStatusText">Creating a QR code so your phone can send a secure share to this device.</p>
           </div>
 
           <div class="qr-wrapper">
@@ -127,10 +120,27 @@
             <a class="button button-primary" id="openMobileLink" href="#" target="_blank" rel="noreferrer">Open on phone</a>
             <button class="button button-secondary" id="refreshSessionButton" type="button">Refresh code</button>
           </div>
-          <p class="receiver-actions-note">Use the phone link to send a URL quickly, or refresh the code when you want a fresh session.</p>
+          <p class="receiver-actions-note">Use the phone link to send a link, note, or file quickly, or refresh the code for a fresh session.</p>
+
+          <label class="toggle-row" for="autoOpenLinksToggle">
+            <input id="autoOpenLinksToggle" type="checkbox">
+            <span>Auto-open incoming links on this device</span>
+          </label>
 
           <div class="feedback-panel" id="redirectPanel" data-tone="neutral">
-            This device stays on standby until a valid URL is received.
+            This device stays on standby until a new share is delivered.
+          </div>
+
+          <div class="inbox-panel">
+            <div class="inbox-head">
+              <div>
+                <p class="eyebrow">Receiver inbox</p>
+                <h2>Incoming shares appear here in real time</h2>
+              </div>
+              <div class="status-pill" id="shareCountBadge" data-tone="neutral">0 items</div>
+            </div>
+            <p class="helper-copy" id="shareListEmptyState">Links, notes, and files from your phone will show up here as soon as they are delivered.</p>
+            <div class="share-list" id="shareList" aria-live="polite"></div>
           </div>
         </section>
       </main>
@@ -139,26 +149,27 @@
         <article class="card support-card support-card-wide">
           <div class="support-head">
             <p class="eyebrow">Good fit for</p>
-            <h2>When a URL starts on your phone but needs to open on another browser.</h2>
+            <h2>When something starts on your phone but needs to land on another browser fast.</h2>
             <p class="support-copy">
-              Sendline keeps the handoff simple: open the receiver screen, scan the QR code, paste the URL, and the other device opens it without typing the address by hand.
+              Sendline keeps the handoff practical: open the receiver screen, scan the QR code,
+              then send a link, a note, or a short-lived file without sign-up or copy-paste chaos.
             </p>
           </div>
           <div class="support-list">
             <article class="support-item">
               <span class="support-item-index">01</span>
-              <h3>Phone to desktop</h3>
-              <p>Open a page on a laptop or desktop without emailing the link to yourself.</p>
+              <h3>Phone to laptop</h3>
+              <p>Move a link or note from a phone browser to your work machine without messaging yourself.</p>
             </article>
             <article class="support-item">
               <span class="support-item-index">02</span>
-              <h3>Tablet to TV browser</h3>
-              <p>Move a URL from a handheld device to a larger browser-based screen in seconds.</p>
+              <h3>Tablet to shared screen</h3>
+              <p>Send a page or a quick instruction to a TV, kiosk, or meeting-room browser in seconds.</p>
             </article>
             <article class="support-item">
               <span class="support-item-index">03</span>
-              <h3>Fast URL handoff</h3>
-              <p>Share a page between devices quickly when you want a simple QR-based sender with no login.</p>
+              <h3>Temporary file handoff</h3>
+              <p>Deliver a file with a limited lifetime so it does not sit around forever after the task is done.</p>
             </article>
           </div>
         </article>
@@ -174,19 +185,19 @@
               <p>No. Sendline works in the browser on both devices and does not require sign-up or login.</p>
             </details>
             <details class="faq-item">
-              <summary>What kind of links can I send?</summary>
-              <p>You can send normal http and https URLs. Sendline validates the URL before opening it on the receiver device.</p>
+              <summary>What can I send?</summary>
+              <p>You can send links and short notes immediately. File sending works when the server has temporary cloud storage configured.</p>
             </details>
             <details class="faq-item">
-              <summary>Does the receiver page need to stay open?</summary>
-              <p>Yes. Keep the receiver page open until the URL is sent, then the device redirects to the new page.</p>
+              <summary>Do file shares expire?</summary>
+              <p>Yes. File shares use a configurable lifetime, and the object is deleted after that lifetime expires.</p>
             </details>
           </div>
         </article>
       </section>
 
       <footer class="footer-note">
-        <span>A simple way to send a URL from your phone to another device.</span>
+        <span>A practical way to hand something from your phone to another device.</span>
         <span>&copy; __CURRENT_YEAR__ __BRAND_NAME__</span>
       </footer>
     </div>

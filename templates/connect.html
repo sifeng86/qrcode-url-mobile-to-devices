@@ -51,10 +51,10 @@
       <main class="layout connect-layout">
         <section class="card connect-card">
           <p class="eyebrow">Phone sender</p>
-          <h1>Paste a URL and open it on the other device.</h1>
+          <h1>Send a link, note, or file.</h1>
           <p class="lead">
-            Open this page by scanning the QR code, confirm the session code, paste your URL,
-            and Sendline will open it on the receiver screen.
+            Open this page by scanning the QR code, confirm the session code, choose what you want to send,
+            and Sendline will deliver it to the receiver inbox.
           </p>
 
           <div class="feedback-panel" id="sessionLookupStatus" data-tone="neutral">
@@ -65,15 +65,49 @@
             <label class="field-label" for="tokenInput">Session code</label>
             <input class="text-field text-field-mono" id="tokenInput" name="token" autocomplete="off" spellcheck="false" placeholder="Enter the code shown on the screen">
 
-            <label class="field-label" for="urlInput">Page URL</label>
-            <input class="text-field" id="urlInput" name="url" type="url" autocomplete="url" inputmode="url" placeholder="https://example.com/menu">
-            <p class="helper-copy">If you enter only a domain, the service adds https:// automatically.</p>
+            <label class="field-label">What are you sending?</label>
+            <div class="segmented-control" id="shareTypeSelector">
+              <label class="segmented-option">
+                <input type="radio" name="shareType" value="link" checked>
+                <span>Link</span>
+              </label>
+              <label class="segmented-option">
+                <input type="radio" name="shareType" value="note">
+                <span>Note</span>
+              </label>
+              <label class="segmented-option" id="fileShareOption">
+                <input type="radio" name="shareType" value="file">
+                <span>File</span>
+              </label>
+            </div>
 
-            <button class="button button-primary button-block" id="submitButton" type="submit">Send URL</button>
+            <div class="share-panel" data-share-panel="link">
+              <label class="field-label" for="urlInput">Page URL</label>
+              <input class="text-field" id="urlInput" name="url" type="url" autocomplete="url" inputmode="url" placeholder="https://example.com/menu">
+              <p class="helper-copy">If you enter only a domain, the service adds https:// automatically.</p>
+            </div>
+
+            <div class="share-panel" data-share-panel="note" hidden>
+              <label class="field-label" for="noteInput">Short note</label>
+              <textarea class="text-area" id="noteInput" name="text" rows="6" maxlength="4000" placeholder="Paste a quick note, instruction, code snippet, or message for the other device."></textarea>
+              <p class="helper-copy">Short notes are best. The receiver can copy the note directly from the inbox.</p>
+            </div>
+
+            <div class="share-panel" data-share-panel="file" hidden>
+              <label class="field-label" for="fileInput">Choose a file</label>
+              <input class="text-field file-field" id="fileInput" name="file" type="file">
+              <p class="helper-copy" id="fileInputHint">Files upload directly to temporary cloud storage and expire automatically.</p>
+            </div>
+
+            <label class="field-label" for="retentionSelect">Available for</label>
+            <select class="text-field select-field" id="retentionSelect" name="retentionMinutes"></select>
+            <p class="helper-copy" id="retentionHelp">Shared items expire automatically. File objects are deleted after expiry.</p>
+
+            <button class="button button-primary button-block" id="submitButton" type="submit">Send share</button>
           </form>
 
           <div class="feedback-panel" id="resultPanel" data-tone="neutral">
-            The URL will be checked before the other device is updated.
+            The receiver session will be checked before the other device is updated.
           </div>
         </section>
 
@@ -85,19 +119,19 @@
               <p>Open the sender page from the QR code shown on the receiver screen.</p>
             </article>
             <article>
-              <h2>2. Paste the URL</h2>
-              <p>Copy any http or https link you want to open on the other device.</p>
+              <h2>2. Choose what to send</h2>
+              <p>Pick a link, a note, or a temporary file and choose how long it should stay available.</p>
             </article>
             <article>
-              <h2>3. Tap Send URL</h2>
-              <p>Sendline verifies the session and opens the page on the receiver screen.</p>
+              <h2>3. Deliver to the inbox</h2>
+              <p>The other device receives the share immediately, with file downloads protected by expiration.</p>
             </article>
           </div>
         </aside>
       </main>
 
       <footer class="footer-note footer-note-compact">
-        <span>Cross-device URL sending with no sign up or login.</span>
+        <span>Cross-device sharing with no sign up or login.</span>
         <span>&copy; __CURRENT_YEAR__ __BRAND_NAME__</span>
       </footer>
     </div>
@@ -114,13 +148,13 @@
     >
       <div class="completion-toast-card">
         <div class="completion-toast-head">
-          <p class="eyebrow completion-toast-eyebrow">URL sent</p>
+          <p class="eyebrow completion-toast-eyebrow">Share sent</p>
           <div class="completion-toast-seconds">
             <strong id="completionCountdown">5</strong>
             <span>s</span>
           </div>
         </div>
-        <h2 id="completionTitle">The other device is opening your page.</h2>
+        <h2 id="completionTitle">The other device has your share.</h2>
         <p class="completion-copy" id="completionMessage">This page will close in 5 seconds.</p>
         <div class="completion-progress" aria-hidden="true">
           <span class="completion-progress-bar" id="completionProgressBar"></span>

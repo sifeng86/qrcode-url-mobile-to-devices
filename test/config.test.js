@@ -30,3 +30,25 @@ test('resolvePublicOrigin prefers the configured public base URL', () => {
 
   assert.equal(resolvePublicOrigin(config, requestLike), 'https://demo.example.com');
 });
+
+test('createConfig disables file storage by default and exposes retention defaults', () => {
+  const config = createConfig({});
+
+  assert.equal(config.storage.enabled, false);
+  assert.equal(config.storage.defaultRetentionMinutes, 60);
+  assert.equal(config.database.shareTableName, 'share_items');
+  assert.ok(config.storage.retentionOptions.includes(60));
+});
+
+test('createConfig enables R2 storage when credentials are present', () => {
+  const config = createConfig({
+    FILE_STORAGE_DRIVER: 'r2',
+    R2_ACCOUNT_ID: 'account-id',
+    R2_BUCKET_NAME: 'sendline-temp',
+    R2_ACCESS_KEY_ID: 'access-key',
+    R2_SECRET_ACCESS_KEY: 'secret-key'
+  });
+
+  assert.equal(config.storage.enabled, true);
+  assert.equal(config.storage.driver, 'r2');
+});
