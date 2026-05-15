@@ -26,7 +26,7 @@ const brand = {
 };
 
 const shareCard = {
-  alt: 'Sendline preview card for temporary sharing across devices',
+  alt: 'Sendline preview card for QR code link and file transfer',
   path: '/social-card.svg'
 };
 
@@ -55,8 +55,8 @@ function createHomeStructuredData({ canonicalUrl, description, imageUrl }) {
       browserRequirements: 'Requires a modern browser with JavaScript enabled.',
       description,
       featureList: [
-        'Open a receiver screen and generate a QR code instantly.',
-        'Send links, notes, or temporary files from your phone to another device.',
+        'Open a receiver screen on a computer or another device and generate a QR code instantly.',
+        'Send links and temporary files from your phone without login or app installation.',
         'Keep file downloads short-lived with configurable expiration and cleanup.'
       ],
       image: imageUrl,
@@ -70,12 +70,12 @@ function createHomeStructuredData({ canonicalUrl, description, imageUrl }) {
       description,
       image: imageUrl,
       inLanguage: 'en',
-      name: `How to send a share from your phone to another device with ${brand.name}`,
+      name: `How to send links and files from phone to computer with ${brand.name}`,
       step: [
         {
           '@type': 'HowToStep',
-          name: 'Open the receiver screen',
-          text: `Open ${brand.name} on the device that should receive the next share.`
+          name: 'Open the receiver on your computer',
+          text: `Open ${brand.name} on the computer or browser that should receive the next link or file.`
         },
         {
           '@type': 'HowToStep',
@@ -84,8 +84,8 @@ function createHomeStructuredData({ canonicalUrl, description, imageUrl }) {
         },
         {
           '@type': 'HowToStep',
-          name: 'Choose what to send',
-          text: 'Send a link, a note, or a temporary file to the other device.'
+          name: 'Send the link or file',
+          text: 'Send a link or temporary file from your phone to the receiving computer or device.'
         }
       ],
       supply: [
@@ -114,18 +114,26 @@ function createHomeStructuredData({ canonicalUrl, description, imageUrl }) {
         },
         {
           '@type': 'Question',
-          name: 'What can I send?',
+          name: 'Can I send a link from my phone to my computer?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: `${brand.name} can send links, short notes, and temporary file deliveries when file storage is configured.`
+            text: `Yes. ${brand.name} lets you scan a QR code and send a link from your phone to a computer, tablet, or another browser.`
           }
         },
         {
           '@type': 'Question',
-          name: 'Do shared files expire?',
+          name: 'Can I send files with a QR code?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Yes. File shares use configurable retention and are deleted after expiry by the cleanup worker.'
+            text: `${brand.name} supports temporary file delivery when file storage is configured, so you can move a file from your phone to another device from the browser.`
+          }
+        },
+        {
+          '@type': 'Question',
+          name: 'Do file transfers expire?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Yes. File transfers use configurable retention and are deleted after expiry by the cleanup worker.'
           }
         }
       ]
@@ -540,7 +548,7 @@ async function createApp(config) {
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
   <title id="title">${brand.name}</title>
-  <desc id="desc">Share links, notes, and temporary files across devices.</desc>
+  <desc id="desc">Send links and files from phone to computer with a QR code.</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0%" stop-color="#0f172a"/>
@@ -558,8 +566,8 @@ async function createApp(config) {
   <rect x="96" y="102" width="110" height="110" rx="28" fill="#f8fafc" fill-opacity="0.16"/>
   <text x="151" y="170" text-anchor="middle" font-family="Sora, Arial, sans-serif" font-size="42" font-weight="700" fill="#f8fafc">${brand.mark}</text>
   <text x="96" y="286" font-family="Sora, Arial, sans-serif" font-size="72" font-weight="700" fill="#f8fafc">${brand.name}</text>
-  <text x="96" y="356" font-family="Sora, Arial, sans-serif" font-size="34" fill="#dbeafe">Send links, notes, and temporary files</text>
-  <text x="96" y="404" font-family="Sora, Arial, sans-serif" font-size="34" fill="#dbeafe">from your phone to another device.</text>
+  <text x="96" y="356" font-family="Sora, Arial, sans-serif" font-size="34" fill="#dbeafe">Send links and files from phone to computer</text>
+  <text x="96" y="404" font-family="Sora, Arial, sans-serif" font-size="34" fill="#dbeafe">with a QR code and no login.</text>
   <text x="96" y="500" font-family="IBM Plex Mono, monospace" font-size="24" fill="#bfdbfe">${homepageUrl}</text>
 </svg>`;
 
@@ -891,8 +899,8 @@ async function createApp(config) {
 
   router.get('/', (request, response) => {
     renderPage(response, 'display', request, {}, {
-      title: `${brand.name} | Share Across Devices`,
-      description: 'Send links, notes, and temporary files from your phone to another device with a QR code.',
+      title: `${brand.name} | Send Links and Files from Phone to Computer`,
+      description: 'Scan a QR code to send links and files from your phone to a computer, tablet, or another device. No login, app, or email required.',
       pagePath: '/',
       structuredDataFactory: createHomeStructuredData,
       scriptName: 'display.js'

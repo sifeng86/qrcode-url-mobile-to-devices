@@ -79,13 +79,14 @@ test('end-to-end share flow behaves correctly', { timeout: 30000 }, async () => 
   const homeResponse = await fetch(`${appUrl}${withBasePath('/')}`);
   const homeHtml = await homeResponse.text();
   assert.equal(homeResponse.status, 200);
-  assert.match(homeHtml, /Sendline \| Share Across Devices/);
+  assert.match(homeHtml, /Sendline \| Send Links and Files from Phone to Computer/);
   assert.match(homeHtml, /<meta name="robots" content="index, follow, max-image-preview:large">/);
   assert.match(homeHtml, new RegExp(`<link rel="canonical" href="${escapeForRegExp(expectedHomeUrl)}">`));
   assert.match(homeHtml, /<meta property="og:site_name" content="Sendline">/);
   assert.match(homeHtml, /FAQPage/);
   assert.match(homeHtml, /HowTo/);
-  assert.match(homeHtml, /temporary files/);
+  assert.match(homeHtml, /phone to a computer/);
+  assert.match(homeHtml, /No login, app, or email required/);
 
   const robotsResponse = await fetch(`${appUrl}/robots.txt`);
   const robotsText = await robotsResponse.text();
