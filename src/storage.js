@@ -47,9 +47,6 @@ function createDisabledStorageService(config) {
     async ensureObjectReady() {
       throw new StorageUnavailableError();
     },
-    async uploadObject() {
-      throw new StorageUnavailableError();
-    },
     isReady() {
       return false;
     }
@@ -132,18 +129,6 @@ function createR2StorageService(config) {
     };
   }
 
-  async function uploadObject({ objectKey, contentType, body, contentLength }) {
-    await client.send(new PutObjectCommand({
-      Bucket: config.storage.r2.bucketName,
-      Key: objectKey,
-      Body: body,
-      ContentLength: contentLength,
-      ContentType: contentType || 'application/octet-stream'
-    }));
-
-    return { uploaded: true };
-  }
-
   async function deleteObject(objectKey) {
     await client.send(new DeleteObjectCommand({
       Bucket: config.storage.r2.bucketName,
@@ -160,7 +145,6 @@ function createR2StorageService(config) {
     createUploadPlan,
     deleteObject,
     ensureObjectReady,
-    uploadObject,
     isReady() {
       return true;
     }

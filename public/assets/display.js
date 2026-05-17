@@ -13,17 +13,9 @@ const refreshSessionButton = document.getElementById('refreshSessionButton');
 const autoOpenLinksToggle = document.getElementById('autoOpenLinksToggle');
 const shareList = document.getElementById('shareList');
 const shareListEmptyState = document.getElementById('shareListEmptyState');
-const receiverStage = document.getElementById('receiverStage');
-const receiverSpotlight = document.getElementById('receiverSpotlight');
-const receiverSpotlightTitle = document.getElementById('receiverSpotlightTitle');
-const receiverSpotlightText = document.getElementById('receiverSpotlightText');
-
-const defaultDocumentTitle = document.title;
 
 let currentSessionToken = '';
 let currentShares = [];
-let incomingHighlightTimeoutId = null;
-let titleResetTimeoutId = null;
 
 function setBadge(text, tone) {
   connectionBadge.textContent = text;
@@ -37,12 +29,6 @@ function setStatus(text) {
 function setActivityMessage(text, tone = 'neutral') {
   redirectPanel.textContent = text;
   redirectPanel.dataset.tone = tone;
-}
-
-function setSpotlight(title, text, tone = 'neutral') {
-  receiverSpotlightTitle.textContent = title;
-  receiverSpotlightText.textContent = text;
-  receiverSpotlight.dataset.tone = tone;
 }
 
 function formatExpiry(expiresAt) {
@@ -69,68 +55,6 @@ function formatBytes(bytes) {
   const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   const value = bytes / (1024 ** exponent);
   return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
-}
-
-function summarizeText(value, maxLength = 120) {
-  const compactValue = String(value || '').trim().replace(/\s+/g, ' ');
-
-  if (!compactValue) {
-    return '';
-  }
-
-  return compactValue.length > maxLength
-    ? `${compactValue.slice(0, maxLength - 1)}…`
-    : compactValue;
-}
-
-function describeIncomingShare(share) {
-  if (share.shareType === 'file') {
-    const fileSize = share.fileSize ? ` (${formatBytes(share.fileSize)})` : '';
-    return {
-      title: 'New file ready',
-      text: `${share.fileName || 'A file'} is ready in the receiver inbox${fileSize}.`
-    };
-  }
-
-  if (share.shareType === 'note') {
-    return {
-      title: 'New note received',
-      text: summarizeText(share.text || 'A new note is ready in the receiver inbox.')
-    };
-  }
-
-  return {
-    title: 'New link received',
-    text: summarizeText(share.url || 'A new link is ready in the receiver inbox.')
-  };
-}
-
-function triggerIncomingHighlight(title) {
-  if (incomingHighlightTimeoutId) {
-    window.clearTimeout(incomingHighlightTimeoutId);
-  }
-
-  if (titleResetTimeoutId) {
-    window.clearTimeout(titleResetTimeoutId);
-  }
-
-  receiverStage.classList.remove('is-receiving');
-  receiverSpotlight.classList.remove('is-emphasized');
-  void receiverStage.offsetWidth;
-  receiverStage.classList.add('is-receiving');
-  receiverSpotlight.classList.add('is-emphasized');
-
-  document.title = `${title} | Sendline`;
-  titleResetTimeoutId = window.setTimeout(() => {
-    document.title = defaultDocumentTitle;
-    titleResetTimeoutId = null;
-  }, 12000);
-
-  incomingHighlightTimeoutId = window.setTimeout(() => {
-    receiverStage.classList.remove('is-receiving');
-    receiverSpotlight.classList.remove('is-emphasized');
-    incomingHighlightTimeoutId = null;
-  }, 2600);
 }
 
 async function copyValue(value, button) {
@@ -204,7 +128,6 @@ function updateShareCount() {
   shareCountBadge.textContent = `${count} item${count === 1 ? '' : 's'}`;
   shareCountBadge.dataset.tone = count > 0 ? 'success' : 'neutral';
   shareListEmptyState.hidden = count > 0;
-  receiverStage.classList.toggle('has-shares', count > 0);
 }
 
 function renderShareCard(share) {
@@ -319,20 +242,8 @@ function setShares(shares) {
 }
 
 function upsertShare(share) {
-  const hadShares = currentShares.length > 0;
   currentShares = [share, ...currentShares.filter((item) => item.id !== share.id)];
   renderShareList();
-
-  if (!hadShares) {
-    receiverStage.classList.add('is-receiving');
-  }
-
-  if (typeof shareList.scrollTo === 'function') {
-    shareList.scrollTo({ top: 0, behavior: 'smooth' });
-    return;
-  }
-
-  shareList.scrollTop = 0;
 }
 
 async function fetchRecentShares(token) {
@@ -359,12 +270,8 @@ function applySession(payload) {
   qrImage.hidden = false;
   expiryLabel.textContent = `This access code stays active until ${formatExpiry(payload.expiresAt)}.`;
   setBadge('Ready', 'success');
-  setStatus('Scan the QR code with your phone, then send a link, note, or file to this screen.');
-  setActivityMessage('The receiver is ready. Keep this page open and use your phone to scan the QR code.', 'neutral');
-  setSpotlight('Scan the QR code with your phone', 'Use your phone camera or the copied phone link to open the sender, then send the next item to this screen.', 'neutral');
-  receiverStage.classList.remove('is-receiving');
-  receiverSpotlight.classList.remove('is-emphasized');
-  document.title = defaultDocumentTitle;
+  setStatus('This device is ready. Scan the QR code or open the phone link on your phone.');
+  setActivityMessage('Waiting for a new share from your phone.', 'neutral');
   refreshSessionButton.disabled = false;
   setShares([]);
   fetchRecentShares(payload.token);
@@ -378,8 +285,7 @@ const socket = io({
 function requestSession(eventName) {
   setBadge('Syncing', 'warning');
   setStatus('Generating a fresh access code for this device...');
-  setActivityMessage('A fresh QR code and phone link are being prepared for this screen.', 'neutral');
-  setSpotlight('Preparing a fresh QR code', 'A new QR code and phone link are being generated so your phone can send the next item here.', 'warning');
+  setActivityMessage('This device will stay on standby until a new share is received.', 'neutral');
   refreshSessionButton.disabled = true;
   socket.emit(eventName);
 }
@@ -393,7 +299,6 @@ socket.on('disconnect', () => {
   setBadge('Reconnecting', 'warning');
   setStatus('Connection lost. Reconnecting to the service...');
   setActivityMessage('A new access code will be prepared automatically after reconnection.', 'warning');
-  setSpotlight('Reconnecting to Sendline', 'A fresh access code will be restored automatically after the receiver reconnects.', 'warning');
 });
 
 socket.on('session:ready', (payload) => {
@@ -404,20 +309,16 @@ socket.on('session:error', (payload) => {
   setBadge('Unavailable', 'danger');
   setStatus(payload.message || 'A new access code is not available right now.');
   setActivityMessage('The service is temporarily unavailable. Refresh the screen and try again.', 'danger');
-  setSpotlight('Receiver temporarily unavailable', payload.message || 'Refresh this screen and try again.', 'danger');
   refreshSessionButton.disabled = false;
 });
 
 socket.on('share:received', (share) => {
   upsertShare(share);
-  const incomingSummary = describeIncomingShare(share);
 
   if (share.shareType === 'link' && share.url && autoOpenLinksToggle.checked && !share.isExpired) {
     setBadge('Opening', 'success');
     setStatus('Incoming link received. Opening it on this device now...');
     setActivityMessage(`Opening: ${share.url}`, 'success');
-    setSpotlight('Opening the latest link', summarizeText(share.url), 'success');
-    triggerIncomingHighlight('Opening link');
     setTimeout(() => {
       window.location.assign(share.url);
     }, 900);
@@ -426,8 +327,6 @@ socket.on('share:received', (share) => {
 
   setBadge('Received', 'success');
   setStatus('Incoming share received. Review it in the receiver inbox below.');
-  setSpotlight(incomingSummary.title, incomingSummary.text, 'success');
-  triggerIncomingHighlight(incomingSummary.title);
 
   if (share.shareType === 'file') {
     setActivityMessage('A file is ready in the receiver inbox.', 'success');

@@ -67,8 +67,14 @@ async function waitForCondition(checker, timeoutMs = 8000, intervalMs = 200) {
 }
 
 test('end-to-end share flow behaves correctly', { timeout: 30000 }, async () => {
-  const expectedHomeUrl = `${appUrl}${withBasePath('/')}`;
-  const expectedConnectUrl = `${appUrl}${withBasePath('/connect')}`;
+  const healthResponse = await fetch(`${appUrl}/health`);
+  const healthPayload = await healthResponse.json();
+  assert.equal(healthResponse.status, 200);
+  assert.equal(healthPayload.ok, true);
+
+  const expectedPublicOrigin = healthPayload.publicOrigin || appUrl;
+  const expectedHomeUrl = `${expectedPublicOrigin}${withBasePath('/')}`;
+  const expectedConnectUrl = `${expectedPublicOrigin}${withBasePath('/connect')}`;
 
   if (testBasePath) {
     const rootResponse = await fetch(appUrl, { redirect: 'manual' });
@@ -87,23 +93,17 @@ test('end-to-end share flow behaves correctly', { timeout: 30000 }, async () => 
   assert.match(homeHtml, /HowTo/);
   assert.match(homeHtml, /phone to a computer/);
   assert.match(homeHtml, /No login, app, or email required/);
-  assert.match(homeHtml, /Incoming shares stay visible on this screen/);
 
   const robotsResponse = await fetch(`${appUrl}/robots.txt`);
   const robotsText = await robotsResponse.text();
   assert.equal(robotsResponse.status, 200);
   assert.match(robotsText, new RegExp(`Disallow: ${escapeForRegExp(withBasePath('/api/'))}`));
-  assert.match(robotsText, new RegExp(`Sitemap: ${escapeForRegExp(`${appUrl}${withBasePath('/sitemap.xml')}`)}`));
+  assert.match(robotsText, new RegExp(`Sitemap: ${escapeForRegExp(`${expectedPublicOrigin}${withBasePath('/sitemap.xml')}`)}`));
 
   const sitemapResponse = await fetch(`${appUrl}/sitemap.xml`);
   const sitemapText = await sitemapResponse.text();
   assert.equal(sitemapResponse.status, 200);
   assert.match(sitemapText, new RegExp(`<loc>${escapeForRegExp(expectedHomeUrl)}</loc>`));
-
-  const healthResponse = await fetch(`${appUrl}/health`);
-  const healthPayload = await healthResponse.json();
-  assert.equal(healthResponse.status, 200);
-  assert.equal(healthPayload.ok, true);
 
   const displaySocket = io(appUrl, {
     path: socketPath,
@@ -117,12 +117,12 @@ test('end-to-end share flow behaves correctly', { timeout: 30000 }, async () => 
     const firstSessionPromise = waitForEvent(displaySocket, 'session:ready');
     displaySocket.emit('display:register');
     const firstSession = await firstSessionPromise;
+    const firstMobileUrl = new URL(firstSession.mobileUrl);
 
     assert.match(firstSession.token, /^[A-Za-z0-9_-]{12,64}$/);
-    assert.match(
-      firstSession.mobileUrl,
-      new RegExp(`^${escapeForRegExp(appUrl)}${escapeForRegExp(withBasePath('/connect'))}\\?token=`)
-    );
+    assert.equal(firstMobileUrl.origin, new URL(expectedPublicOrigin).origin);
+    assert.equal(firstMobileUrl.pathname, withBasePath('/connect'));
+    assert.equal(firstMobileUrl.searchParams.get('token'), firstSession.token);
     assert.match(firstSession.qrCodeDataUrl, /^data:image\/png;base64,/);
 
     const connectResponse = await fetch(firstSession.mobileUrl);
@@ -139,7 +139,7 @@ test('end-to-end share flow behaves correctly', { timeout: 30000 }, async () => 
     assert.equal(lookupResult.payload.ok, true);
     assert.equal(lookupResult.payload.session.token, firstSession.token);
     assert.equal(lookupResult.payload.session.hasActiveDisplay, true);
-    assert.equal(lookupResult.payload.session.storageEnabled, false);
+    assert.equal(lookupResult.payload.session.storageEnabled, healthPayload.storage.enabled);
 
     const invalidUrlResult = await fetchJson(withBasePath('/api/relay'), {
       method: 'POST',
@@ -217,19 +217,20 @@ test('end-to-end share flow behaves correctly', { timeout: 30000 }, async () => 
         retentionMinutes: 15
       })
     });
-    assert.equal(filePrepareResult.response.status, 503);
-    assert.equal(filePrepareResult.payload.code, 'FILE_STORAGE_UNAVAILABLE');
 
-    const proxiedUploadResult = await fetchJson(withBasePath('/api/files/1/upload'), {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'X-Session-Token': firstSession.token
-      },
-      body: 'abc'
-    });
-    assert.equal(proxiedUploadResult.response.status, 503);
-    assert.equal(proxiedUploadResult.payload.code, 'FILE_STORAGE_UNAVAILABLE');
+    if (healthPayload.storage.enabled) {
+      assert.equal(filePrepareResult.response.status, 200);
+      assert.equal(filePrepareResult.payload.ok, true);
+      assert.equal(filePrepareResult.payload.share.shareType, 'file');
+      assert.equal(filePrepareResult.payload.share.fileName, 'report.pdf');
+      assert.equal(filePrepareResult.payload.share.status, 'pending_upload');
+      assert.equal(filePrepareResult.payload.upload.method, 'PUT');
+      assert.equal(filePrepareResult.payload.upload.headers['Content-Type'], 'application/pdf');
+      assert.match(filePrepareResult.payload.upload.url, /^https:\/\//);
+    } else {
+      assert.equal(filePrepareResult.response.status, 503);
+      assert.equal(filePrepareResult.payload.code, 'FILE_STORAGE_UNAVAILABLE');
+    }
 
     const refreshPromise = waitForEvent(displaySocket, 'session:ready');
     displaySocket.emit('display:refresh');

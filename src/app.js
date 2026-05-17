@@ -239,10 +239,6 @@ function buildShareDownloadPath(config, shareItem) {
   return `${withBasePath(config, `/api/shares/${shareItem.id}/download`)}?${params.toString()}`;
 }
 
-function buildShareUploadFallbackPath(config, shareItemId) {
-  return withBasePath(config, `/api/files/${shareItemId}/upload`);
-}
-
 function buildShareSummary(config, shareItem) {
   const payload = shareItem.payloadJson || {};
   const expired = isExpiredShareItem(shareItem) || ['expired', 'deleted'].includes(shareItem.status);
@@ -301,6 +297,7 @@ async function createApp(config) {
   const repository = createSessionRepository(config.database);
   const storage = createStorageService(config);
   const templates = loadTemplates(config.rootDir);
+  const assetVersion = Date.now().toString(36);
   const shareMutationLimiter = createRateLimiter({
     windowMs: 60000,
     maxRequests: 24,
@@ -389,6 +386,10 @@ async function createApp(config) {
     };
   }
 
+  function withAssetVersion(pathname) {
+    return `${withBasePath(config, pathname)}?v=${assetVersion}`;
+  }
+
   function renderPage(response, templateName, requestLike, pageData, metadata) {
     const seo = buildSeoPayload(config, requestLike, metadata);
 
@@ -405,9 +406,9 @@ async function createApp(config) {
       BRAND_MARK: brand.mark,
       BRAND_NAME: brand.name,
       HOME_PATH: withBasePath(config, '/'),
-      STYLESHEET_PATH: withBasePath(config, '/assets/main.css'),
-      SCRIPT_PATH: withBasePath(config, `/assets/${metadata.scriptName}`),
-      SOCKET_SCRIPT_PATH: withBasePath(config, '/socket.io/socket.io.js'),
+      STYLESHEET_PATH: withAssetVersion('/assets/main.css'),
+      SCRIPT_PATH: withAssetVersion(`/assets/${metadata.scriptName}`),
+      SOCKET_SCRIPT_PATH: withAssetVersion('/socket.io/socket.io.js'),
       APP_CONFIG_JSON: serializeForScript(buildClientConfig(requestLike)),
       PAGE_DATA_JSON: serializeForScript(pageData || {}),
       CURRENT_YEAR: new Date().getFullYear()
@@ -435,7 +436,7 @@ async function createApp(config) {
       STRUCTURED_DATA_BLOCK: seo.structuredDataBlock,
       BRAND_MARK: brand.mark,
       BRAND_NAME: brand.name,
-      STYLESHEET_PATH: withBasePath(config, '/assets/main.css'),
+      STYLESHEET_PATH: withAssetVersion('/assets/main.css'),
       HOME_PATH: withBasePath(config, '/'),
       APP_CONFIG_JSON: serializeForScript(buildClientConfig(requestLike)),
       PAGE_DATA_JSON: serializeForScript({}),
@@ -502,6 +503,7 @@ async function createApp(config) {
     response.set('X-Robots-Tag', 'noindex, nofollow, noarchive').status(health.ok ? 200 : 503).json({
       ok: health.ok,
       database: health.database,
+      publicOrigin: resolvePublicOrigin(config, request),
       storage: {
         driver: config.storage.driver,
         enabled: storage.isReady(),
@@ -743,7 +745,6 @@ async function createApp(config) {
         shareId: shareItem.id,
         share: buildShareSummary(config, shareItem),
         upload: {
-          fallbackUrl: buildShareUploadFallbackPath(config, shareItem.id),
           url: uploadPlan.url,
           method: uploadPlan.method,
           headers: uploadPlan.headers,
@@ -761,79 +762,6 @@ async function createApp(config) {
 
       console.error('Failed to prepare file upload:', error);
       return sendProblem(response, 500, 'FILE_PREPARE_FAILED', 'Unable to prepare this file upload right now.');
-    }
-  }
-
-  async function proxyFileUploadHandler(request, response) {
-    try {
-      response.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
-
-      if (!storage.isReady()) {
-        return sendProblem(response, 503, 'FILE_STORAGE_UNAVAILABLE', 'File sharing is not configured on this server yet.');
-      }
-
-      const token = validateToken(request.get('X-Session-Token') || request.query.token);
-      const shareId = validateShareId(request.params.shareId);
-      const session = await resolveSession(token, response, { requireActiveDisplay: true });
-
-      if (!session) {
-        return;
-      }
-
-      const shareItem = await resolveShareItem(token, shareId, response);
-
-      if (!shareItem) {
-        return;
-      }
-
-      if (shareItem.shareType !== 'file') {
-        return sendProblem(response, 400, 'INVALID_SHARE_TYPE', 'This share item is not a file upload.');
-      }
-
-      if (shareItem.status === 'delivered') {
-        return response.json({
-          ok: true,
-          message: 'This file has already been uploaded.',
-          share: buildShareSummary(config, shareItem)
-        });
-      }
-
-      if (shareItem.status !== 'pending_upload') {
-        return sendProblem(response, 409, 'UPLOAD_STATE_INVALID', 'This file upload can no longer accept new bytes.');
-      }
-
-      const body = Buffer.isBuffer(request.body) ? request.body : Buffer.alloc(0);
-
-      if (!body.length) {
-        return sendProblem(response, 400, 'UPLOAD_BODY_MISSING', 'No file bytes were received by the app server.');
-      }
-
-      if (shareItem.fileSize && body.length !== shareItem.fileSize) {
-        return sendProblem(response, 400, 'UPLOAD_SIZE_MISMATCH', 'The uploaded file size does not match the prepared metadata.');
-      }
-
-      await storage.uploadObject({
-        objectKey: shareItem.objectKey,
-        contentType: shareItem.contentType,
-        contentLength: body.length,
-        body
-      });
-
-      return response.json({
-        ok: true,
-        message: 'The file was uploaded through the app server.'
-      });
-    } catch (error) {
-      if (error instanceof ValidationError) {
-        return sendProblem(response, 400, error.code, error.message);
-      }
-
-      if (error instanceof StorageUnavailableError) {
-        return sendProblem(response, 503, 'FILE_STORAGE_UNAVAILABLE', error.message);
-      }
-
-      console.error('Failed to proxy file upload:', error);
-      return sendProblem(response, 500, 'FILE_UPLOAD_FAILED', 'Unable to upload this file right now.');
     }
   }
 
@@ -1018,7 +946,6 @@ async function createApp(config) {
   router.get('/api/session/:token/shares', sessionSharesHandler);
   router.post('/api/relay', shareMutationLimiter, relayHandler);
   router.post('/api/files/prepare', shareMutationLimiter, prepareFileHandler);
-  router.put('/api/files/:shareId/upload', shareMutationLimiter, express.raw({ limit: config.storage.maxFileBytes, type: '*/*' }), proxyFileUploadHandler);
   router.post('/api/files/finalize', shareMutationLimiter, finalizeFileHandler);
   router.get('/api/shares/:shareId/download', fileDownloadLimiter, downloadShareHandler);
 
