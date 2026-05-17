@@ -204,6 +204,7 @@ function updateShareCount() {
   shareCountBadge.textContent = `${count} item${count === 1 ? '' : 's'}`;
   shareCountBadge.dataset.tone = count > 0 ? 'success' : 'neutral';
   shareListEmptyState.hidden = count > 0;
+  receiverStage.classList.toggle('has-shares', count > 0);
 }
 
 function renderShareCard(share) {
@@ -318,8 +319,13 @@ function setShares(shares) {
 }
 
 function upsertShare(share) {
+  const hadShares = currentShares.length > 0;
   currentShares = [share, ...currentShares.filter((item) => item.id !== share.id)];
   renderShareList();
+
+  if (!hadShares) {
+    receiverStage.classList.add('is-receiving');
+  }
 
   if (typeof shareList.scrollTo === 'function') {
     shareList.scrollTo({ top: 0, behavior: 'smooth' });
@@ -353,9 +359,9 @@ function applySession(payload) {
   qrImage.hidden = false;
   expiryLabel.textContent = `This access code stays active until ${formatExpiry(payload.expiresAt)}.`;
   setBadge('Ready', 'success');
-  setStatus('This device is ready. Scan the QR code or open the phone link on your phone.');
-  setActivityMessage('Waiting for a new share from your phone.', 'neutral');
-  setSpotlight('Waiting for the next share', 'This screen will highlight new links, notes, and files as soon as they arrive from your phone.', 'neutral');
+  setStatus('Scan the QR code with your phone, then send a link, note, or file to this screen.');
+  setActivityMessage('The receiver is ready. Keep this page open and use your phone to scan the QR code.', 'neutral');
+  setSpotlight('Scan the QR code with your phone', 'Use your phone camera or the copied phone link to open the sender, then send the next item to this screen.', 'neutral');
   receiverStage.classList.remove('is-receiving');
   receiverSpotlight.classList.remove('is-emphasized');
   document.title = defaultDocumentTitle;
@@ -372,8 +378,8 @@ const socket = io({
 function requestSession(eventName) {
   setBadge('Syncing', 'warning');
   setStatus('Generating a fresh access code for this device...');
-  setActivityMessage('This device will stay on standby until a new share is received.', 'neutral');
-  setSpotlight('Preparing a fresh receiver session', 'A new QR code and phone link are being generated for this screen.', 'warning');
+  setActivityMessage('A fresh QR code and phone link are being prepared for this screen.', 'neutral');
+  setSpotlight('Preparing a fresh QR code', 'A new QR code and phone link are being generated so your phone can send the next item here.', 'warning');
   refreshSessionButton.disabled = true;
   socket.emit(eventName);
 }

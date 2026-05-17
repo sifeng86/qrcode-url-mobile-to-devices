@@ -53,52 +53,91 @@
           <div class="card-header">
             <div>
               <p class="eyebrow">Receiver screen</p>
-              <h2>Ready to receive the next share</h2>
+              <h1 class="receiver-title" id="receiverTitle">Scan with your phone to send to this screen.</h1>
             </div>
             <div class="status-pill" id="connectionBadge" data-tone="neutral">Connecting</div>
           </div>
 
-          <div class="receiver-spotlight" id="receiverSpotlight" data-tone="neutral" role="status" aria-live="polite" aria-atomic="true">
-            <div class="receiver-spotlight-copy-block">
-              <p class="eyebrow">Live activity</p>
-              <h2 id="receiverSpotlightTitle">Waiting for the next share</h2>
-              <p class="receiver-spotlight-copy" id="receiverSpotlightText">This screen will highlight new links, notes, and files as soon as they arrive from your phone.</p>
-            </div>
-            <div class="receiver-spotlight-badges">
-              <div class="status-pill" id="shareCountBadge" data-tone="neutral">0 items</div>
-            </div>
-          </div>
-
-          <div class="receiver-workspace">
+          <div class="receiver-shell">
             <div class="inbox-panel receiver-inbox-panel">
               <div class="inbox-head">
                 <div>
                   <p class="eyebrow">Receiver inbox</p>
-                  <h2>Incoming shares stay visible on this screen</h2>
+                  <h2>Latest shares for this screen</h2>
                 </div>
                 <div class="share-meta-pill">Newest first</div>
               </div>
-              <p class="helper-copy" id="shareListEmptyState">Links, notes, and files from your phone will show up here as soon as they are delivered.</p>
+
+              <div class="receiver-spotlight" id="receiverSpotlight" data-tone="neutral" role="status" aria-live="polite" aria-atomic="true">
+                <div class="receiver-spotlight-copy-block">
+                  <p class="eyebrow">Live activity</p>
+                  <h2 id="receiverSpotlightTitle">Waiting for the next share</h2>
+                  <p class="receiver-spotlight-copy" id="receiverSpotlightText">This screen will highlight new links, notes, and files as soon as they arrive from your phone.</p>
+                </div>
+                <div class="receiver-spotlight-badges">
+                  <div class="status-pill" id="shareCountBadge" data-tone="neutral">0 items</div>
+                </div>
+              </div>
+
+              <p class="helper-copy" id="shareListEmptyState">The first incoming link, note, or file will appear here as soon as your phone sends it.</p>
               <div class="share-list" id="shareList" aria-live="polite"></div>
             </div>
 
-            <div class="receiver-control-panel">
-              <div class="status-line">
-                <p id="sessionStatusText">Creating a QR code so your phone can send a secure share to this device.</p>
-              </div>
+            <div class="receiver-qr-panel">
+              <p class="eyebrow">Scan from your phone</p>
+              <h2 class="receiver-sidebar-title" id="receiverTitle">Scan with your phone to send to this screen.</h2>
+              <p class="receiver-lead">
+                Keep this page open on the computer, TV, or shared display that should receive the next item.
+                Scan the QR code with your phone to send a link, note, or file. No login, app, or email required.
+              </p>
 
-              <div class="feedback-panel" id="redirectPanel" data-tone="neutral">
-                This device stays on standby until a new share is delivered.
-              </div>
+              <ol class="receiver-step-list" aria-label="How to send from phone to computer">
+                <li class="receiver-step-item">
+                  <span class="receiver-step-index">1</span>
+                  <div>
+                    <h2>Open your phone camera</h2>
+                    <p>Scan the QR code on the right, or use the copied phone link if scanning is inconvenient.</p>
+                  </div>
+                </li>
+                <li class="receiver-step-item">
+                  <span class="receiver-step-index">2</span>
+                  <div>
+                    <h2>Choose what to send</h2>
+                    <p>From the phone, send a link, note, or temporary file directly into this receiver session.</p>
+                  </div>
+                </li>
+                <li class="receiver-step-item">
+                  <span class="receiver-step-index">3</span>
+                  <div>
+                    <h2>Watch this screen update</h2>
+                    <p>Incoming shares stay visible on this screen, and new arrivals are highlighted automatically.</p>
+                  </div>
+                </li>
+              </ol>
 
-              <div class="qr-wrapper">
-                <div class="qr-shell">
+              <div class="qr-wrapper receiver-qr-wrapper">
+                <div class="qr-shell receiver-qr-shell">
                   <img id="qrImage" alt="QR code used to open the secure mobile sender page">
                 </div>
                 <p class="helper-copy" id="expiryLabel">A fresh access code will appear here in a moment.</p>
               </div>
 
-              <div class="field-stack">
+              <div class="receiver-status-stack">
+                <div class="status-line">
+                  <p id="sessionStatusText">Creating a QR code so your phone can send a secure share to this device.</p>
+                </div>
+
+                <div class="feedback-panel" id="redirectPanel" data-tone="neutral">
+                  This device stays on standby until a new share is delivered.
+                </div>
+
+                <label class="toggle-row" for="autoOpenLinksToggle">
+                  <input id="autoOpenLinksToggle" type="checkbox">
+                  <span>Auto-open incoming links on this device</span>
+                </label>
+              </div>
+
+              <div class="field-stack receiver-field-stack">
                 <label class="field-label" for="tokenField">Session code</label>
                 <div class="field-row">
                   <input class="text-field text-field-mono" id="tokenField" readonly value="">
@@ -117,45 +156,7 @@
                 <button class="button button-secondary" id="refreshSessionButton" type="button">Refresh code</button>
               </div>
               <p class="receiver-actions-note">Use the phone link to send a link, note, or file quickly, or refresh the code for a fresh session.</p>
-
-              <label class="toggle-row" for="autoOpenLinksToggle">
-                <input id="autoOpenLinksToggle" type="checkbox">
-                <span>Auto-open incoming links on this device</span>
-              </label>
             </div>
-          </div>
-        </section>
-
-        <section class="hero-panel card card-hero" id="hero">
-          <p class="eyebrow">Phone-to-computer transfer</p>
-          <h1>Send links and files from your phone to a computer.</h1>
-          <p class="lead">
-            Leave the receiver workspace open on the larger screen, then scan the QR code with your phone to send a link,
-            note, or file without login, app installation, or email.
-          </p>
-
-          <div class="hero-pills" aria-label="Service highlights">
-            <span class="hero-pill">Receiver-first desktop layout</span>
-            <span class="hero-pill">No login or app</span>
-            <span class="hero-pill">Works in any modern browser</span>
-          </div>
-
-          <div class="feature-grid">
-            <article class="feature-card">
-              <span class="feature-index">01</span>
-              <h2>Keep the receiver visible</h2>
-              <p>The inbox stays high on the page so a desktop operator can notice new shares immediately.</p>
-            </article>
-            <article class="feature-card">
-              <span class="feature-index">02</span>
-              <h2>Scan on the phone</h2>
-              <p>Use the QR code or copied phone link to open the sender page on a smaller screen.</p>
-            </article>
-            <article class="feature-card">
-              <span class="feature-index">03</span>
-              <h2>React in real time</h2>
-              <p>New links, notes, and files appear at the top of the inbox with a visible live-activity highlight.</p>
-            </article>
           </div>
         </section>
       </main>
