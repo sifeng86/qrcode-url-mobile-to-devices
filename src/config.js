@@ -38,7 +38,23 @@ function normalizeBasePath(input = '') {
 }
 
 function normalizePublicBaseUrl(input = '') {
-  return String(input || '').trim().replace(/\/+$/g, '');
+  const trimmed = String(input || '').trim().replace(/\/+$/g, '');
+
+  if (!trimmed) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return '';
+    }
+
+    return parsed.origin;
+  } catch {
+    return '';
+  }
 }
 
 function withBasePath(configOrBasePath, pathname = '/') {
@@ -82,6 +98,8 @@ function resolvePublicAppUrl(config, requestLike) {
 function createConfig(env = process.env) {
   const basePath = normalizeBasePath(env.BASE_PATH || '');
   const environment = env.NODE_ENV || 'development';
+  const configuredPublicBaseUrl = String(env.PUBLIC_BASE_URL || '').trim();
+  const publicBaseUrl = normalizePublicBaseUrl(configuredPublicBaseUrl);
   const hasR2Credentials = Boolean(
     env.R2_ACCOUNT_ID
     && env.R2_BUCKET_NAME
@@ -127,7 +145,10 @@ function createConfig(env = process.env) {
     rootDir: path.resolve(__dirname, '..'),
     appPort: parsePositiveInteger(env.APP_PORT || env.PORT, 8080),
     basePath,
-    publicBaseUrl: normalizePublicBaseUrl(env.PUBLIC_BASE_URL || ''),
+    publicBaseUrl,
+    publicBaseUrlWarning: configuredPublicBaseUrl && !publicBaseUrl
+      ? `Ignoring invalid PUBLIC_BASE_URL: ${configuredPublicBaseUrl}. Expected a full http:// or https:// origin.`
+      : null,
     socketPath: withBasePath(basePath, '/socket.io'),
     sessionTtlMinutes: parsePositiveInteger(env.SESSION_TTL_MINUTES, 20),
     cleanupIntervalMs: parsePositiveInteger(env.CLEANUP_INTERVAL_MS, 300000),

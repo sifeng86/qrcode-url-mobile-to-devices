@@ -138,6 +138,130 @@ File sharing is disabled until the R2 settings below are configured.
 
 If you use Docker Compose, place these values in `.env`. The compose app service now passes them through to the container automatically.
 
+#### Cloudflare dashboard walkthrough
+
+Use this checklist if you want to know exactly where each value comes from.
+
+1. Log in to the Cloudflare dashboard and open your account.
+2. Go to `R2 Object Storage`.
+3. Create a bucket.
+4. Create an API token for that bucket.
+5. Add a bucket CORS policy.
+6. Copy the values into `.env` and rebuild the app.
+
+Important limitation for the current app:
+
+- This app currently uses the standard R2 endpoint format `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` from [src/storage.js](d:/Projects/qrcode-url-mobile-to-devices/src/storage.js).
+- Because of that, use a bucket in the default jurisdiction for now. Do not use an EU-only or FedRAMP-only bucket unless you also add endpoint configuration support in the app.
+
+#### Where each variable comes from
+
+| Variable | What to put here | Where to get it in Cloudflare |
+| --- | --- | --- |
+| `FILE_STORAGE_DRIVER` | `r2` | You set this yourself in `.env` to enable the R2 driver. |
+| `R2_ACCOUNT_ID` | Your Cloudflare account ID | Cloudflare dashboard -> choose the account -> the account ID is shown in account details. Cloudflare documents this as the ID used in the R2 S3 endpoint `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`. |
+| `R2_BUCKET_NAME` | The exact R2 bucket name | Cloudflare dashboard -> `R2 Object Storage` -> your bucket list -> copy the bucket name you created. |
+| `R2_ACCESS_KEY_ID` | The R2 Access Key ID | Cloudflare dashboard -> `R2 Object Storage` -> `Manage` next to `API Tokens` -> create an R2 token -> copy the displayed `Access Key ID` value. Cloudflare may also refer to this as `Client ID`. |
+| `R2_SECRET_ACCESS_KEY` | The R2 Secret Access Key | Shown only once immediately after token creation in the same R2 token flow. Cloudflare may also refer to this as `Client Secret`. Copy it immediately and store it safely. |
+
+#### Step 1: create the bucket
+
+1. In Cloudflare, open `R2 Object Storage`.
+2. Select `Create bucket`.
+3. Enter a bucket name. This exact value becomes `R2_BUCKET_NAME`.
+4. Keep the bucket in the default jurisdiction for this app.
+
+Recommended bucket naming for this project:
+
+- `sendline-temp`
+- `sendline-uploads`
+
+#### Step 2: create API credentials
+
+Cloudflare's official R2 authentication flow is:
+
+1. Open `R2 Object Storage`.
+2. Under `Account Details`, select `Manage` next to `API Tokens`.
+3. Choose one of these:
+
+- `Create User API token`: simpler for personal development.
+- `Create Account API token`: better if this project is owned by the Cloudflare account rather than one person. Only Super Administrators can create or view these.
+
+4. Choose permissions.
+
+For this app, the practical minimum is:
+
+- `Object Read & Write` scoped to the one bucket used by Sendline.
+
+That gives the app enough access to:
+
+- upload objects,
+- check uploaded objects,
+- create downloads,
+- delete expired objects.
+
+5. Create the token.
+6. Copy both values shown at the end:
+
+- `Access Key ID` -> use as `R2_ACCESS_KEY_ID`
+- `Secret Access Key` -> use as `R2_SECRET_ACCESS_KEY`
+
+Important:
+
+- Cloudflare only shows the `Secret Access Key` once.
+- If you lose it, create a new token instead of trying to recover the old secret.
+
+#### Step 3: find the account ID
+
+Cloudflare documents that the R2 S3 API endpoint is:
+
+```text
+https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+```
+
+So `R2_ACCOUNT_ID` is the Cloudflare account ID, not the bucket ID and not the token ID.
+
+To get it:
+
+1. Stay in the same Cloudflare account.
+2. Open the account details area in the dashboard.
+3. Copy the account ID.
+
+#### Step 4: put the values into `.env`
+
+Example:
+
+```dotenv
+FILE_STORAGE_DRIVER=r2
+R2_ACCOUNT_ID=your_cloudflare_account_id
+R2_BUCKET_NAME=sendline-temp
+R2_ACCESS_KEY_ID=your_r2_access_key_id
+R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+```
+
+You will usually also want these defaults at the same time:
+
+```dotenv
+FILE_UPLOAD_URL_TTL_SECONDS=300
+FILE_DOWNLOAD_URL_TTL_SECONDS=60
+FILE_RETENTION_MINUTES=60
+FILE_RETENTION_MIN_MINUTES=5
+FILE_RETENTION_MAX_MINUTES=1440
+FILE_MAX_BYTES=26214400
+```
+
+#### Step 5: add bucket CORS in the Cloudflare dashboard
+
+Cloudflare's dashboard path is:
+
+1. `R2 Object Storage`
+2. Select your bucket
+3. `Settings`
+4. `CORS Policy`
+5. `Add CORS policy`
+6. Open the `JSON` tab
+7. Paste the policy and save
+
 Recommended defaults for the first rollout:
 
 - `FILE_UPLOAD_URL_TTL_SECONDS=300`
@@ -171,6 +295,36 @@ Important notes:
 - `GET` is useful for browser-side access and future debugging checks.
 - `HEAD` is safe to include and aligns with object metadata checks.
 - If you change the bucket CORS policy on a live domain, allow a short propagation window before retesting.
+
+#### Step 6: rebuild and verify
+
+After `.env` is updated, rebuild the app:
+
+```bash
+docker compose up -d --build
+```
+
+Then check runtime health:
+
+```bash
+curl http://localhost:8080/health
+```
+
+You want to see this in the response:
+
+```json
+"storage": {
+	"enabled": true
+}
+```
+
+#### Common mistakes
+
+- Using the zone ID instead of the account ID.
+- Creating the bucket in a non-default jurisdiction even though the app currently uses only the standard R2 endpoint.
+- Forgetting to save the `Secret Access Key` when Cloudflare shows it.
+- Adding `/connect` or another path into `AllowedOrigins`.
+- Updating `.env` but forgetting to rebuild the Docker container.
 
 ## Environment variables
 

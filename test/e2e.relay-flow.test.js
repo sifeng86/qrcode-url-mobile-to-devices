@@ -87,6 +87,7 @@ test('end-to-end share flow behaves correctly', { timeout: 30000 }, async () => 
   assert.match(homeHtml, /HowTo/);
   assert.match(homeHtml, /phone to a computer/);
   assert.match(homeHtml, /No login, app, or email required/);
+  assert.match(homeHtml, /Incoming shares stay visible on this screen/);
 
   const robotsResponse = await fetch(`${appUrl}/robots.txt`);
   const robotsText = await robotsResponse.text();
@@ -218,6 +219,17 @@ test('end-to-end share flow behaves correctly', { timeout: 30000 }, async () => 
     });
     assert.equal(filePrepareResult.response.status, 503);
     assert.equal(filePrepareResult.payload.code, 'FILE_STORAGE_UNAVAILABLE');
+
+    const proxiedUploadResult = await fetchJson(withBasePath('/api/files/1/upload'), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-Session-Token': firstSession.token
+      },
+      body: 'abc'
+    });
+    assert.equal(proxiedUploadResult.response.status, 503);
+    assert.equal(proxiedUploadResult.payload.code, 'FILE_STORAGE_UNAVAILABLE');
 
     const refreshPromise = waitForEvent(displaySocket, 'session:ready');
     displaySocket.emit('display:refresh');

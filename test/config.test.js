@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {
   createConfig,
   normalizeBasePath,
+  normalizePublicBaseUrl,
   resolvePublicOrigin,
   withBasePath
 } = require('../src/config');
@@ -29,6 +30,27 @@ test('resolvePublicOrigin prefers the configured public base URL', () => {
   };
 
   assert.equal(resolvePublicOrigin(config, requestLike), 'https://demo.example.com');
+});
+
+test('normalizePublicBaseUrl accepts only absolute http origins', () => {
+  assert.equal(normalizePublicBaseUrl('https://demo.example.com///'), 'https://demo.example.com');
+  assert.equal(normalizePublicBaseUrl('http://localhost:8080'), 'http://localhost:8080');
+  assert.equal(normalizePublicBaseUrl('sendline.cachigo.com'), '');
+  assert.equal(normalizePublicBaseUrl('ftp://demo.example.com'), '');
+});
+
+test('createConfig ignores invalid PUBLIC_BASE_URL values and falls back to request origin', () => {
+  const config = createConfig({ PUBLIC_BASE_URL: 'sendline.cachigo.com' });
+  const requestLike = {
+    headers: {
+      host: 'sendline.cachigo.com',
+      'x-forwarded-proto': 'https'
+    }
+  };
+
+  assert.equal(config.publicBaseUrl, '');
+  assert.match(config.publicBaseUrlWarning || '', /Ignoring invalid PUBLIC_BASE_URL/);
+  assert.equal(resolvePublicOrigin(config, requestLike), 'https://sendline.cachigo.com');
 });
 
 test('createConfig disables file storage by default and exposes retention defaults', () => {

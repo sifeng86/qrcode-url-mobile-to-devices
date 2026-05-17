@@ -1,0 +1,115 @@
+# Sendline production bring-up checklist
+
+Why there are two nginx configs:
+
+1. sendline-bootstrap.conf
+- Use this first, before any certificate exists.
+- It only needs plain HTTP on port 80.
+- Its job is to serve /.well-known/acme-challenge/ from /var/www/certbot and proxy the app on HTTP.
+- Use it to verify that the ACME challenge file is reachable from the public internet.
+
+2. sendline-tls.conf
+- Use this only after certbot has already created:
+	- /etc/letsencrypt/live/<domain>/fullchain.pem
+	- /etc/letsencrypt/live/<domain>/privkey.pem
+- It keeps the HTTP challenge path available on port 80 and enables HTTPS on 443.
+- This repo's TLS config is self-contained and does not require Certbot's nginx helper snippets.
+
+Reason for the split:
+- nginx cannot load a TLS server block if the certificate files do not exist yet.
+- The safest flow is bootstrap first, certbot second, TLS third.
+
+Fresh Oracle Cloud instance checklist:
+
+1. Public networking
+- Confirm the instance has the expected public IPv4.
+- Point the domain A record to that public IPv4.
+- If you use Cloudflare, keep the record DNS-only until HTTP-01 finishes.
+
+2. OCI ingress rules
+- Open TCP 22 from your management IP or a narrow CIDR.
+- Open TCP 80 from 0.0.0.0/0.
+- Open TCP 443 from 0.0.0.0/0.
+- Check both Security List and NSG if the instance uses both.
+
+3. Host firewall
+- Do not assume "ufw not installed" means "no firewall".
+- Check active rules:
+	- sudo nft list ruleset
+	- sudo iptables -L INPUT -n -v
+- If the INPUT chain only allows 22 and rejects everything else, allow 80 and 443 explicitly.
+
+Example fix when iptables-nft is managing the active rules:
+
+sudo iptables -I INPUT 5 -p tcp --dport 80 -m conntrack --ctstate NEW -j ACCEPT
+sudo iptables -I INPUT 6 -p tcp --dport 443 -m conntrack --ctstate NEW -j ACCEPT
+
+4. Base packages
+- Install nginx.
+- Install certbot.
+- Install Docker only if the app will run in containers.
+- Install mysql client tools if you want direct DB health checks.
+
+5. App runtime prerequisites
+- Confirm the app listens on the expected local port, usually 127.0.0.1:8080 or 0.0.0.0:8080.
+- Confirm DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, and DB_NAME are correct.
+- If PUBLIC_BASE_URL is set, it must include the scheme, for example:
+	- https://sendline.cachigo.com
+- If BASE_PATH is empty, leave it truly empty. Do not set "/".
+
+6. Bootstrap nginx phase
+- Copy only sendline-bootstrap.conf into /etc/nginx/conf.d/sendline.conf.
+- Create the certbot webroot:
+	- sudo mkdir -p /var/www/certbot/.well-known/acme-challenge
+- Put a manual test file there:
+	- echo ok | sudo tee /var/www/certbot/.well-known/acme-challenge/test-file
+- Validate nginx:
+	- sudo nginx -t
+	- sudo systemctl restart nginx
+
+7. Verify the challenge path before certbot
+- Local host check:
+	- curl -i -H 'Host: <domain>' http://127.0.0.1/.well-known/acme-challenge/test-file
+- Public internet check:
+	- curl -i http://<domain>/.well-known/acme-challenge/test-file
+- Expected result: HTTP 200 with body "ok".
+- If nginx access.log does not see the public request, the problem is before nginx.
+
+8. Request the certificate
+- Use the parent webroot, not the challenge directory itself:
+	- sudo certbot certonly --webroot -w /var/www/certbot -d <domain>
+
+9. TLS nginx phase
+- Replace the bootstrap config with sendline-tls.conf.
+- Validate nginx again:
+	- sudo nginx -t
+	- sudo systemctl reload nginx
+- Verify both URLs:
+	- curl -I http://<domain>/
+	- curl -I https://<domain>/
+
+10. App verification after HTTPS is live
+- Direct app health check, bypassing nginx if possible:
+	- curl -i http://127.0.0.1:8080/health
+- Reverse-proxied health check:
+	- curl -i https://<domain>/health
+- If HTTPS returns 500 on the homepage, inspect app logs before touching nginx.
+
+11. Logs to check
+- nginx access log
+- nginx error log
+- app stdout/stderr
+- docker logs <container> if the app runs in Docker
+- journalctl -u <service-name> if the app runs as a systemd service
+
+Common failure patterns:
+- Connection timeout or no route to host:
+	- OCI ingress, local firewall, or wrong public IP
+- nginx access.log stays empty during a public curl:
+	- packet never reached nginx
+- HTTP challenge works locally but not publicly:
+	- firewall or OCI rules
+- HTTPS handshake works but homepage returns 500:
+	- app-side error, often invalid env or an upstream exception
+- Root page returns 500 immediately in this app:
+	- first check PUBLIC_BASE_URL for a missing scheme or malformed value

@@ -239,6 +239,10 @@ function buildShareDownloadPath(config, shareItem) {
   return `${withBasePath(config, `/api/shares/${shareItem.id}/download`)}?${params.toString()}`;
 }
 
+function buildShareUploadFallbackPath(config, shareItemId) {
+  return withBasePath(config, `/api/files/${shareItemId}/upload`);
+}
+
 function buildShareSummary(config, shareItem) {
   const payload = shareItem.payloadJson || {};
   const expired = isExpiredShareItem(shareItem) || ['expired', 'deleted'].includes(shareItem.status);
@@ -739,6 +743,7 @@ async function createApp(config) {
         shareId: shareItem.id,
         share: buildShareSummary(config, shareItem),
         upload: {
+          fallbackUrl: buildShareUploadFallbackPath(config, shareItem.id),
           url: uploadPlan.url,
           method: uploadPlan.method,
           headers: uploadPlan.headers,
@@ -756,6 +761,79 @@ async function createApp(config) {
 
       console.error('Failed to prepare file upload:', error);
       return sendProblem(response, 500, 'FILE_PREPARE_FAILED', 'Unable to prepare this file upload right now.');
+    }
+  }
+
+  async function proxyFileUploadHandler(request, response) {
+    try {
+      response.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+
+      if (!storage.isReady()) {
+        return sendProblem(response, 503, 'FILE_STORAGE_UNAVAILABLE', 'File sharing is not configured on this server yet.');
+      }
+
+      const token = validateToken(request.get('X-Session-Token') || request.query.token);
+      const shareId = validateShareId(request.params.shareId);
+      const session = await resolveSession(token, response, { requireActiveDisplay: true });
+
+      if (!session) {
+        return;
+      }
+
+      const shareItem = await resolveShareItem(token, shareId, response);
+
+      if (!shareItem) {
+        return;
+      }
+
+      if (shareItem.shareType !== 'file') {
+        return sendProblem(response, 400, 'INVALID_SHARE_TYPE', 'This share item is not a file upload.');
+      }
+
+      if (shareItem.status === 'delivered') {
+        return response.json({
+          ok: true,
+          message: 'This file has already been uploaded.',
+          share: buildShareSummary(config, shareItem)
+        });
+      }
+
+      if (shareItem.status !== 'pending_upload') {
+        return sendProblem(response, 409, 'UPLOAD_STATE_INVALID', 'This file upload can no longer accept new bytes.');
+      }
+
+      const body = Buffer.isBuffer(request.body) ? request.body : Buffer.alloc(0);
+
+      if (!body.length) {
+        return sendProblem(response, 400, 'UPLOAD_BODY_MISSING', 'No file bytes were received by the app server.');
+      }
+
+      if (shareItem.fileSize && body.length !== shareItem.fileSize) {
+        return sendProblem(response, 400, 'UPLOAD_SIZE_MISMATCH', 'The uploaded file size does not match the prepared metadata.');
+      }
+
+      await storage.uploadObject({
+        objectKey: shareItem.objectKey,
+        contentType: shareItem.contentType,
+        contentLength: body.length,
+        body
+      });
+
+      return response.json({
+        ok: true,
+        message: 'The file was uploaded through the app server.'
+      });
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        return sendProblem(response, 400, error.code, error.message);
+      }
+
+      if (error instanceof StorageUnavailableError) {
+        return sendProblem(response, 503, 'FILE_STORAGE_UNAVAILABLE', error.message);
+      }
+
+      console.error('Failed to proxy file upload:', error);
+      return sendProblem(response, 500, 'FILE_UPLOAD_FAILED', 'Unable to upload this file right now.');
     }
   }
 
@@ -940,6 +1018,7 @@ async function createApp(config) {
   router.get('/api/session/:token/shares', sessionSharesHandler);
   router.post('/api/relay', shareMutationLimiter, relayHandler);
   router.post('/api/files/prepare', shareMutationLimiter, prepareFileHandler);
+  router.put('/api/files/:shareId/upload', shareMutationLimiter, express.raw({ limit: config.storage.maxFileBytes, type: '*/*' }), proxyFileUploadHandler);
   router.post('/api/files/finalize', shareMutationLimiter, finalizeFileHandler);
   router.get('/api/shares/:shareId/download', fileDownloadLimiter, downloadShareHandler);
 

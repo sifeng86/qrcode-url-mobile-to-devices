@@ -5,6 +5,11 @@ const { createConfig } = require('./src/config');
 
 async function start() {
   const config = createConfig();
+
+  if (config.publicBaseUrlWarning) {
+    console.warn(config.publicBaseUrlWarning);
+  }
+
   const { server } = await createApp(config);
 
   server.listen(config.appPort, () => {

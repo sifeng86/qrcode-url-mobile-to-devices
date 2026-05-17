@@ -193,7 +193,35 @@ async function loadSessionState() {
   }
 }
 
-function uploadFile(upload, file) {
+function describeDirectUploadFailure(status, responseText) {
+  const compactResponse = String(responseText || '').trim().replace(/\s+/g, ' ').slice(0, 180);
+
+  if (status === 0) {
+    return 'The direct upload could not reach temporary storage from this browser.';
+  }
+
+  if (status === 403) {
+    return compactResponse
+      ? `Temporary storage rejected the direct upload (403). ${compactResponse}`
+      : 'Temporary storage rejected the direct upload (403). Check the bucket CORS policy and presigned upload settings for this origin.';
+  }
+
+  if (status === 400) {
+    return compactResponse
+      ? `Temporary storage rejected the direct upload (400). ${compactResponse}`
+      : 'Temporary storage rejected the direct upload because the request did not match the prepared metadata.';
+  }
+
+  if (status >= 500) {
+    return `Temporary storage returned ${status} during the direct upload.`;
+  }
+
+  return status
+    ? `The direct upload to temporary storage failed with status ${status}.`
+    : 'The direct upload to temporary storage failed.';
+}
+
+function uploadFileDirect(upload, file) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open(upload.method || 'PUT', upload.url);
@@ -217,15 +245,66 @@ function uploadFile(upload, file) {
         return;
       }
 
-      reject(new Error('The direct upload to temporary storage failed.'));
+      reject(new Error(describeDirectUploadFailure(xhr.status, xhr.responseText)));
     });
 
     xhr.addEventListener('error', () => {
-      reject(new Error('The direct upload to temporary storage failed.'));
+      reject(new Error(describeDirectUploadFailure(xhr.status, xhr.responseText)));
     });
+
+    xhr.addEventListener('timeout', () => {
+      reject(new Error('The direct upload to temporary storage timed out before it completed.'));
+    });
+
+    xhr.timeout = 30000;
 
     xhr.send(file);
   });
+}
+
+async function uploadFileThroughApp(fallbackUrl, token, file) {
+  const response = await fetch(fallbackUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': file.type || 'application/octet-stream',
+      'X-Session-Token': token
+    },
+    body: file
+  });
+  const responseText = await response.text();
+  let payload = null;
+
+  if (responseText) {
+    try {
+      payload = JSON.parse(responseText);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(payload && payload.message
+      ? payload.message
+      : `The upload retry through the app server failed with status ${response.status}.`);
+  }
+
+  return payload;
+}
+
+async function uploadFile(upload, file, token) {
+  try {
+    await uploadFileDirect(upload, file);
+    return { via: 'direct' };
+  } catch (error) {
+    if (!upload.fallbackUrl) {
+      throw error;
+    }
+
+    setSubmitting(true, 'Retrying upload...');
+    setResultMessage('Direct cloud upload failed in this browser. Retrying through the app server...', 'warning');
+    await uploadFileThroughApp(upload.fallbackUrl, token, file);
+    return { via: 'relay', reason: error.message };
+  }
 }
 
 async function sendLinkOrNote(token, shareType) {
@@ -285,10 +364,16 @@ async function sendFile(token) {
   }
 
   setSubmitting(true, 'Uploading file...');
-  await uploadFile(preparePayload.upload, file);
+  const uploadResult = await uploadFile(preparePayload.upload, file, token);
 
   setSubmitting(true, 'Finishing upload...');
-  setResultMessage('Verifying the uploaded file and notifying the receiver...', 'warning');
+  setResultMessage(
+    uploadResult.via === 'relay'
+      ? 'The file reached the app server. Verifying it in storage and notifying the receiver...'
+      : 'Verifying the uploaded file and notifying the receiver...'
+    ,
+    'warning'
+  );
 
   const finalizeResponse = await fetch(appConfig.routes.fileFinalize, {
     method: 'POST',
@@ -322,7 +407,7 @@ function clearShareInputs(shareType) {
 
   if (shareType === 'file') {
     fileInput.value = '';
-    fileInputHint.textContent = 'Files upload directly to temporary cloud storage and expire automatically.';
+    fileInputHint.textContent = 'Files upload directly to temporary cloud storage and retry through this app if the browser blocks the direct upload.';
   }
 }
 
@@ -365,7 +450,7 @@ fileInput.addEventListener('change', () => {
   const file = fileInput.files && fileInput.files[0];
 
   if (!file) {
-    fileInputHint.textContent = 'Files upload directly to temporary cloud storage and expire automatically.';
+    fileInputHint.textContent = 'Files upload directly to temporary cloud storage and retry through this app if the browser blocks the direct upload.';
     return;
   }
 
