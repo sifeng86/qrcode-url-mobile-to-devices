@@ -13,9 +13,16 @@ const refreshSessionButton = document.getElementById('refreshSessionButton');
 const autoOpenLinksToggle = document.getElementById('autoOpenLinksToggle');
 const shareList = document.getElementById('shareList');
 const shareListEmptyState = document.getElementById('shareListEmptyState');
+const receiverInboxCard = document.getElementById('receiverInboxCard');
+const shareNotification = document.getElementById('shareNotification');
+const shareNotificationButton = document.getElementById('shareNotificationButton');
+const shareNotificationTitle = document.getElementById('shareNotificationTitle');
+const shareNotificationBody = document.getElementById('shareNotificationBody');
 
 let currentSessionToken = '';
 let currentShares = [];
+let inboxHighlightTimer = 0;
+let shareNotificationTimer = 0;
 
 function setBadge(text, tone) {
   connectionBadge.textContent = text;
@@ -128,6 +135,68 @@ function updateShareCount() {
   shareCountBadge.textContent = `${count} item${count === 1 ? '' : 's'}`;
   shareCountBadge.dataset.tone = count > 0 ? 'success' : 'neutral';
   shareListEmptyState.hidden = count > 0;
+}
+
+function hideShareNotification() {
+  if (!shareNotification) {
+    return;
+  }
+
+  window.clearTimeout(shareNotificationTimer);
+  shareNotification.hidden = true;
+}
+
+function focusReceiverInbox() {
+  if (!receiverInboxCard) {
+    return;
+  }
+
+  window.clearTimeout(inboxHighlightTimer);
+  receiverInboxCard.classList.remove('is-highlighted');
+  void receiverInboxCard.offsetWidth;
+  receiverInboxCard.classList.add('is-highlighted');
+  receiverInboxCard.focus({ preventScroll: true });
+  receiverInboxCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  inboxHighlightTimer = window.setTimeout(() => {
+    receiverInboxCard.classList.remove('is-highlighted');
+  }, 2200);
+}
+
+function getShareNotificationContent(share) {
+  if (share.shareType === 'file') {
+    return {
+      body: `${share.fileName} is ready in the Receiver Inbox. Click to jump there now.`,
+      title: 'File received'
+    };
+  }
+
+  if (share.shareType === 'note') {
+    return {
+      body: 'A new note just arrived. Click to jump to the Receiver Inbox and review it.',
+      title: 'Note received'
+    };
+  }
+
+  return {
+    body: 'A new link just arrived. Click to jump to the Receiver Inbox and open it.',
+    title: 'Link received'
+  };
+}
+
+function showShareNotification(share) {
+  if (!shareNotification || !shareNotificationButton) {
+    return;
+  }
+
+  const content = getShareNotificationContent(share);
+  shareNotificationTitle.textContent = content.title;
+  shareNotificationBody.textContent = content.body;
+  shareNotification.hidden = false;
+  window.clearTimeout(shareNotificationTimer);
+  shareNotificationTimer = window.setTimeout(() => {
+    hideShareNotification();
+  }, 9000);
 }
 
 function renderShareCard(share) {
@@ -273,6 +342,7 @@ function applySession(payload) {
   setStatus('This device is ready. Scan the QR code or open the phone link on your phone.');
   setActivityMessage('Waiting for a new share from your phone.', 'neutral');
   refreshSessionButton.disabled = false;
+  hideShareNotification();
   setShares([]);
   fetchRecentShares(payload.token);
 }
@@ -299,6 +369,7 @@ socket.on('disconnect', () => {
   setBadge('Reconnecting', 'warning');
   setStatus('Connection lost. Reconnecting to the service...');
   setActivityMessage('A new access code will be prepared automatically after reconnection.', 'warning');
+  hideShareNotification();
 });
 
 socket.on('session:ready', (payload) => {
@@ -310,6 +381,7 @@ socket.on('session:error', (payload) => {
   setStatus(payload.message || 'A new access code is not available right now.');
   setActivityMessage('The service is temporarily unavailable. Refresh the screen and try again.', 'danger');
   refreshSessionButton.disabled = false;
+  hideShareNotification();
 });
 
 socket.on('share:received', (share) => {
@@ -327,6 +399,7 @@ socket.on('share:received', (share) => {
 
   setBadge('Received', 'success');
   setStatus('Incoming share received. Review it in the receiver inbox below.');
+  showShareNotification(share);
 
   if (share.shareType === 'file') {
     setActivityMessage('A file is ready in the receiver inbox.', 'success');
@@ -340,3 +413,10 @@ socket.on('share:received', (share) => {
 refreshSessionButton.addEventListener('click', () => {
   requestSession('display:refresh');
 });
+
+if (shareNotificationButton) {
+  shareNotificationButton.addEventListener('click', () => {
+    hideShareNotification();
+    focusReceiverInbox();
+  });
+}

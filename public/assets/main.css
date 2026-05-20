@@ -187,7 +187,15 @@ textarea {
 }
 
 .display-layout {
-  grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+  grid-template-columns: minmax(0, 1.04fr) minmax(340px, 0.9fr);
+  align-items: start;
+}
+
+.display-column {
+  display: grid;
+  gap: 1.35rem;
+  align-content: start;
+  min-width: 0;
 }
 
 .connect-layout {
@@ -227,10 +235,18 @@ textarea {
 .hero-panel h1,
 .connect-card h1 {
   margin: 0;
-  max-width: 12ch;
-  font-size: clamp(2.2rem, 5vw, 4.4rem);
   line-height: 1.03;
   letter-spacing: -0.04em;
+}
+
+.hero-panel h1 {
+  max-width: 8.4ch;
+  font-size: clamp(2rem, 3.7vw, 3.55rem);
+}
+
+.connect-card h1 {
+  max-width: 12ch;
+  font-size: clamp(2.2rem, 5vw, 4.4rem);
 }
 
 .session-card h2,
@@ -251,13 +267,14 @@ textarea {
 }
 
 .lead {
-  margin: 1rem 0 0;
+  margin: 0.85rem 0 0;
   max-width: 56ch;
   color: var(--muted);
-  line-height: 1.72;
+  line-height: 1.62;
 }
 
 .card-hero {
+  padding: 1.7rem;
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(241, 248, 255, 0.86)),
     rgba(255, 255, 255, 0.78);
@@ -267,7 +284,7 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-  margin-top: 1.4rem;
+  margin-top: 1.1rem;
 }
 
 .hero-pill {
@@ -287,8 +304,8 @@ textarea {
 .feature-grid,
 .info-list {
   display: grid;
-  gap: 1rem;
-  margin-top: 1.8rem;
+  gap: 0.85rem;
+  margin-top: 1.3rem;
 }
 
 .feature-grid {
@@ -297,7 +314,7 @@ textarea {
 
 .feature-card,
 .info-list article {
-  padding: 1.1rem;
+  padding: 0.95rem;
   border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(148, 163, 184, 0.16);
@@ -306,15 +323,15 @@ textarea {
 
 .feature-card p,
 .info-list p {
-  margin: 0.65rem 0 0;
+  margin: 0.5rem 0 0;
   color: var(--muted);
-  line-height: 1.68;
-  font-size: 0.94rem;
+  line-height: 1.55;
+  font-size: 0.89rem;
 }
 
 .feature-index {
   display: inline-flex;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   color: var(--accent-strong);
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.84rem;
@@ -583,10 +600,25 @@ textarea {
   accent-color: var(--accent);
 }
 
-.inbox-panel {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(148, 163, 184, 0.18);
+.inbox-card {
+  padding: 1.35rem 1.45rem;
+  scroll-margin-top: 1.5rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(237, 246, 255, 0.88)),
+    rgba(255, 255, 255, 0.84);
+  transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
+}
+
+.inbox-card:focus {
+  outline: none;
+}
+
+.inbox-card.is-highlighted {
+  border-color: rgba(15, 118, 110, 0.28);
+  box-shadow:
+    0 0 0 4px rgba(15, 118, 110, 0.1),
+    0 24px 72px rgba(15, 23, 42, 0.18);
+  transform: translateY(-2px);
 }
 
 .inbox-head {
@@ -600,6 +632,12 @@ textarea {
   display: grid;
   gap: 0.9rem;
   margin-top: 1rem;
+}
+
+.inbox-card .share-list {
+  max-height: 26rem;
+  overflow: auto;
+  padding-right: 0.15rem;
 }
 
 .share-card {
@@ -773,6 +811,88 @@ textarea {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.share-notification {
+  position: fixed;
+  inset: 0;
+  z-index: 36;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  pointer-events: none;
+}
+
+.share-notification[hidden] {
+  display: none;
+}
+
+.share-notification-card {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 0.45rem;
+  padding: 1.1rem 1.15rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 26px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(237, 248, 255, 0.92)),
+    rgba(255, 255, 255, 0.9);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.2);
+  pointer-events: auto;
+  cursor: pointer;
+  text-align: left;
+  animation: notification-pop 0.28s ease both;
+}
+
+.share-notification-card:hover {
+  transform: translateY(-2px);
+}
+
+.share-notification-badge,
+.share-notification-action {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 2rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.share-notification-badge {
+  background: rgba(15, 118, 110, 0.12);
+  color: var(--accent-strong);
+}
+
+.share-notification-title {
+  font-size: clamp(1.1rem, 2.5vw, 1.35rem);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.share-notification-copy {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.share-notification-action {
+  margin-top: 0.2rem;
+  background: rgba(14, 165, 233, 0.1);
+  color: #0b6ea8;
+}
+
+@keyframes notification-pop {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes toast-rise {
@@ -1000,6 +1120,10 @@ textarea {
     font-size: clamp(2rem, 10vw, 3rem);
   }
 
+  .display-column {
+    gap: 1rem;
+  }
+
   .hero-pills {
     flex-direction: column;
   }
@@ -1030,5 +1154,10 @@ textarea {
   .button,
   .text-field {
     width: 100%;
+  }
+
+  .inbox-card .share-list {
+    max-height: none;
+    overflow: visible;
   }
 }

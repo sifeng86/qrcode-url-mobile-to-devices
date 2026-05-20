@@ -49,38 +49,52 @@
       </header>
 
       <main class="layout display-layout" id="hero">
-        <section class="hero-panel card card-hero">
-          <p class="eyebrow">Phone-to-computer transfer</p>
-          <h1>Send links and files from your phone to a computer.</h1>
-          <p class="lead">
-            Open this page on the computer or browser that should receive the next item.
-            Scan the QR code with your phone to send a link or file with no login, app, or email.
-          </p>
+        <div class="display-column display-column-primary">
+          <section class="hero-panel card card-hero">
+            <p class="eyebrow">Phone-to-computer transfer</p>
+            <h1>Send links and files from your phone to a computer.</h1>
+            <p class="lead">
+              Open this page on the computer or browser that should receive the next item.
+              Scan the QR code with your phone to send a link or file with no login, app, or email.
+            </p>
 
-          <div class="hero-pills" aria-label="Service highlights">
-            <span class="hero-pill">QR code transfer</span>
-            <span class="hero-pill">No login or app</span>
-            <span class="hero-pill">Works in any modern browser</span>
-          </div>
+            <div class="hero-pills" aria-label="Service highlights">
+              <span class="hero-pill">QR code transfer</span>
+              <span class="hero-pill">No login or app</span>
+              <span class="hero-pill">Works in any modern browser</span>
+            </div>
 
-          <div class="feature-grid">
-            <article class="feature-card">
-              <span class="feature-index">01</span>
-              <h2>Open it on your computer</h2>
-              <p>Leave this page open on the computer, laptop, or browser that should receive the next item.</p>
-            </article>
-            <article class="feature-card">
-              <span class="feature-index">02</span>
-              <h2>Scan the QR code</h2>
-              <p>Use your phone to open the sender page linked to this active session.</p>
-            </article>
-            <article class="feature-card">
-              <span class="feature-index">03</span>
-              <h2>Open links or download files</h2>
-              <p>Open links, copy notes, or download files directly on the receiving device.</p>
-            </article>
-          </div>
-        </section>
+            <div class="feature-grid">
+              <article class="feature-card">
+                <span class="feature-index">01</span>
+                <h2>Open it on your computer</h2>
+                <p>Leave this page open on the computer, laptop, or browser that should receive the next item.</p>
+              </article>
+              <article class="feature-card">
+                <span class="feature-index">02</span>
+                <h2>Scan the QR code</h2>
+                <p>Use your phone to open the sender page linked to this active session.</p>
+              </article>
+              <article class="feature-card">
+                <span class="feature-index">03</span>
+                <h2>Open links or download files</h2>
+                <p>Open links, copy notes, or download files directly on the receiving device.</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="card inbox-card" id="receiverInboxCard" tabindex="-1">
+            <div class="inbox-head">
+              <div>
+                <p class="eyebrow">Receiver inbox</p>
+                <h2>Incoming shares appear here in real time</h2>
+              </div>
+              <div class="status-pill" id="shareCountBadge" data-tone="neutral">0 items</div>
+            </div>
+            <p class="helper-copy" id="shareListEmptyState">Links, notes, and files from your phone will show up here as soon as they are delivered.</p>
+            <div class="share-list" id="shareList" aria-live="polite"></div>
+          </section>
+        </div>
 
         <section class="card session-card">
           <div class="card-header">
@@ -130,20 +144,17 @@
           <div class="feedback-panel" id="redirectPanel" data-tone="neutral">
             This device stays on standby until a new share is delivered.
           </div>
-
-          <div class="inbox-panel">
-            <div class="inbox-head">
-              <div>
-                <p class="eyebrow">Receiver inbox</p>
-                <h2>Incoming shares appear here in real time</h2>
-              </div>
-              <div class="status-pill" id="shareCountBadge" data-tone="neutral">0 items</div>
-            </div>
-            <p class="helper-copy" id="shareListEmptyState">Links, notes, and files from your phone will show up here as soon as they are delivered.</p>
-            <div class="share-list" id="shareList" aria-live="polite"></div>
-          </div>
         </section>
       </main>
+
+      <div class="share-notification" id="shareNotification" hidden>
+        <button class="share-notification-card" id="shareNotificationButton" type="button">
+          <span class="share-notification-badge">Incoming share</span>
+          <strong class="share-notification-title" id="shareNotificationTitle">New item received</strong>
+          <span class="share-notification-copy" id="shareNotificationBody">Click to jump to the Receiver Inbox.</span>
+          <span class="share-notification-action">View Receiver Inbox</span>
+        </button>
+      </div>
 
       <section class="support-grid" aria-label="More about Sendline">
         <article class="card support-card support-card-wide">
