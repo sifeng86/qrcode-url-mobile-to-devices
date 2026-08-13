@@ -48,86 +48,96 @@
         <div class="topbar-pill">No login required</div>
       </header>
 
-      <main class="layout connect-layout">
-        <section class="card connect-card">
-          <p class="eyebrow">Phone sender</p>
-          <h1>Send a link, note, or file.</h1>
-          <p class="lead">
-            Open this page by scanning the QR code, confirm the session code, choose what you want to send,
-            and Sendline will deliver it to the receiver inbox.
-          </p>
+      <main class="connect-main">
+        <section class="card connect-card" aria-labelledby="composerHeading">
+          <header class="composer-header">
+            <p class="eyebrow">Send from this device</p>
+            <h1 id="composerHeading">Send a link, note, or file.</h1>
+            <p class="lead">Choose what you want to share. It will appear on the receiving screen right away.</p>
+          </header>
 
-          <div class="feedback-panel" id="sessionLookupStatus" data-tone="neutral">
-            Scan the QR code or enter the session code to continue.
+          <div class="connection-banner" id="sessionLookupStatus" data-tone="neutral" role="status" aria-live="polite" aria-atomic="true">
+            <span class="connection-banner-icon" aria-hidden="true">•••</span>
+            <span>Checking the receiving screen…</span>
           </div>
 
           <form id="handoffForm" class="form-stack" novalidate>
-            <label class="field-label" for="tokenInput">Session code</label>
-            <input class="text-field text-field-mono" id="tokenInput" name="token" autocomplete="off" spellcheck="false" placeholder="Enter the code shown on the screen">
-
-            <label class="field-label">What are you sending?</label>
-            <div class="segmented-control" id="shareTypeSelector">
-              <label class="segmented-option">
-                <input type="radio" name="shareType" value="link" checked>
-                <span>Link</span>
-              </label>
-              <label class="segmented-option">
-                <input type="radio" name="shareType" value="note">
-                <span>Note</span>
-              </label>
-              <label class="segmented-option" id="fileShareOption">
-                <input type="radio" name="shareType" value="file">
-                <span>File</span>
-              </label>
+            <div class="field-group token-field-group" id="tokenFieldGroup">
+              <label class="field-label" for="tokenInput">Session code</label>
+              <input class="text-field text-field-mono" id="tokenInput" name="token" autocomplete="off" spellcheck="false" placeholder="Enter the code shown on the receiving screen" aria-describedby="tokenHelp tokenError">
+              <p class="helper-copy" id="tokenHelp">You only need this when opening the sender page manually.</p>
+              <p class="field-error" id="tokenError" hidden></p>
             </div>
 
-            <div class="share-panel" data-share-panel="link">
-              <label class="field-label" for="urlInput">Page URL</label>
-              <input class="text-field" id="urlInput" name="url" type="url" autocomplete="url" inputmode="url" placeholder="https://example.com/menu">
-              <p class="helper-copy">If you enter only a domain, the service adds https:// automatically.</p>
+            <fieldset class="share-type-fieldset">
+              <legend>What are you sending?</legend>
+              <div class="segmented-control" id="shareTypeSelector">
+                <label class="segmented-option">
+                  <input type="radio" name="shareType" value="link" checked>
+                  <span>Link</span>
+                </label>
+                <label class="segmented-option">
+                  <input type="radio" name="shareType" value="note">
+                  <span>Note</span>
+                </label>
+                <label class="segmented-option" id="fileShareOption">
+                  <input type="radio" name="shareType" value="file">
+                  <span>File</span>
+                </label>
+              </div>
+              <p class="helper-copy share-type-help" id="fileAvailabilityMessage" hidden>File sharing is not available on this server.</p>
+            </fieldset>
+
+            <div class="share-panel field-group" data-share-panel="link">
+              <label class="field-label" for="urlInput">Link to send</label>
+              <input class="text-field" id="urlInput" name="url" type="url" autocomplete="url" inputmode="url" placeholder="Paste a link" aria-describedby="urlHelp urlError">
+              <p class="helper-copy" id="urlHelp">A domain such as example.com works too.</p>
+              <p class="field-error" id="urlError" hidden></p>
             </div>
 
-            <div class="share-panel" data-share-panel="note" hidden>
-              <label class="field-label" for="noteInput">Short note</label>
-              <textarea class="text-area" id="noteInput" name="text" rows="6" maxlength="4000" placeholder="Paste a quick note, instruction, code snippet, or message for the other device."></textarea>
-              <p class="helper-copy">Short notes are best. The receiver can copy the note directly from the inbox.</p>
+            <div class="share-panel field-group" data-share-panel="note" hidden>
+              <label class="field-label" for="noteInput">Text to send</label>
+              <textarea class="text-area" id="noteInput" name="text" rows="6" maxlength="4000" placeholder="Paste a note, code, or message" aria-describedby="noteHelp noteError"></textarea>
+              <div class="field-support-row">
+                <p class="helper-copy" id="noteHelp">Up to 4,000 characters.</p>
+                <span class="character-count" id="noteCharacterCount">0 / 4,000</span>
+              </div>
+              <p class="field-error" id="noteError" hidden></p>
             </div>
 
-            <div class="share-panel" data-share-panel="file" hidden>
-              <label class="field-label" for="fileInput">Choose a file</label>
-              <input class="text-field file-field" id="fileInput" name="file" type="file">
-              <p class="helper-copy" id="fileInputHint">Files upload directly to temporary cloud storage and expire automatically.</p>
+            <div class="share-panel field-group" data-share-panel="file" hidden>
+              <label class="field-label" for="fileInput">File to send</label>
+              <input class="text-field file-field" id="fileInput" name="file" type="file" aria-describedby="fileInputHint fileError">
+              <div class="field-support-row">
+                <p class="helper-copy" id="fileInputHint">Choose a temporary file to upload.</p>
+                <button class="button-link" id="clearFileButton" type="button" hidden>Remove</button>
+              </div>
+              <p class="field-error" id="fileError" hidden></p>
+              <div class="upload-progress" id="fileProgress" hidden>
+                <div class="upload-progress-track" id="fileProgressBar" role="progressbar" aria-label="File upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                  <span id="fileProgressFill"></span>
+                </div>
+                <span id="fileProgressLabel">0%</span>
+              </div>
             </div>
 
-            <label class="field-label" for="retentionSelect">Available for</label>
-            <select class="text-field select-field" id="retentionSelect" name="retentionMinutes"></select>
-            <p class="helper-copy" id="retentionHelp">Shared items expire automatically. File objects are deleted after expiry.</p>
+            <details class="advanced-options">
+              <summary>
+                <span>Available for</span>
+                <strong id="retentionSummary">1 hour</strong>
+              </summary>
+              <div class="advanced-options-body">
+                <label class="visually-hidden" for="retentionSelect">Availability duration</label>
+                <select class="text-field select-field" id="retentionSelect" name="retentionMinutes" aria-describedby="retentionHelp"></select>
+                <p class="helper-copy" id="retentionHelp">Shared items expire automatically. Temporary files are deleted after expiry.</p>
+              </div>
+            </details>
 
-            <button class="button button-primary button-block" id="submitButton" type="submit">Send share</button>
+            <button class="button button-primary button-block submit-button" id="submitButton" type="submit">Send link</button>
           </form>
 
-          <div class="feedback-panel" id="resultPanel" data-tone="neutral">
-            The receiver session will be checked before the other device is updated.
-          </div>
+          <div class="feedback-panel operation-status" id="resultPanel" data-tone="neutral" role="status" aria-live="polite" aria-atomic="true" hidden></div>
         </section>
-
-        <aside class="card info-card">
-          <p class="eyebrow">How it works</p>
-          <div class="info-list">
-            <article>
-              <h2>1. Scan the QR code</h2>
-              <p>Open the sender page from the QR code shown on the receiver screen.</p>
-            </article>
-            <article>
-              <h2>2. Choose what to send</h2>
-              <p>Pick a link, a note, or a temporary file and choose how long it should stay available.</p>
-            </article>
-            <article>
-              <h2>3. Deliver to the inbox</h2>
-              <p>The other device receives the share immediately, with file downloads protected by expiration.</p>
-            </article>
-          </div>
-        </aside>
       </main>
 
       <footer class="footer-note footer-note-compact">
@@ -137,27 +147,22 @@
     </div>
 
     <div
-      class="completion-toast"
+      class="completion-dialog"
       id="completionOverlay"
       hidden
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
+      role="dialog"
+      aria-modal="true"
       aria-labelledby="completionTitle"
       aria-describedby="completionMessage"
     >
-      <div class="completion-toast-card">
-        <div class="completion-toast-head">
-          <p class="eyebrow completion-toast-eyebrow">Share sent</p>
-          <div class="completion-toast-seconds">
-            <strong id="completionCountdown">5</strong>
-            <span>s</span>
-          </div>
-        </div>
+      <div class="completion-dialog-card">
+        <span class="completion-check" aria-hidden="true">✓</span>
+        <p class="eyebrow">Share sent</p>
         <h2 id="completionTitle">The other device has your share.</h2>
-        <p class="completion-copy" id="completionMessage">This page will close in 5 seconds.</p>
-        <div class="completion-progress" aria-hidden="true">
-          <span class="completion-progress-bar" id="completionProgressBar"></span>
+        <p class="completion-copy" id="completionMessage">You can send another item or close this page.</p>
+        <div class="completion-actions">
+          <button class="button button-primary" id="sendAnotherButton" type="button">Send another</button>
+          <button class="button button-secondary" id="closePageButton" type="button">Close page</button>
         </div>
       </div>
     </div>

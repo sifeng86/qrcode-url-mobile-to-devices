@@ -8,21 +8,17 @@ const mobileLinkField = document.getElementById('mobileLinkField');
 const openMobileLink = document.getElementById('openMobileLink');
 const qrImage = document.getElementById('qrImage');
 const expiryLabel = document.getElementById('expiryLabel');
-const redirectPanel = document.getElementById('redirectPanel');
 const refreshSessionButton = document.getElementById('refreshSessionButton');
 const autoOpenLinksToggle = document.getElementById('autoOpenLinksToggle');
 const shareList = document.getElementById('shareList');
 const shareListEmptyState = document.getElementById('shareListEmptyState');
+const shareAnnouncement = document.getElementById('shareAnnouncement');
 const receiverInboxCard = document.getElementById('receiverInboxCard');
-const shareNotification = document.getElementById('shareNotification');
-const shareNotificationButton = document.getElementById('shareNotificationButton');
-const shareNotificationTitle = document.getElementById('shareNotificationTitle');
-const shareNotificationBody = document.getElementById('shareNotificationBody');
+const viewInboxButton = document.getElementById('viewInboxButton');
 
 let currentSessionToken = '';
 let currentShares = [];
-let inboxHighlightTimer = 0;
-let shareNotificationTimer = 0;
+let newShareHighlightTimer = 0;
 
 function setBadge(text, tone) {
   connectionBadge.textContent = text;
@@ -33,15 +29,17 @@ function setStatus(text) {
   sessionStatusText.textContent = text;
 }
 
-function setActivityMessage(text, tone = 'neutral') {
-  redirectPanel.textContent = text;
-  redirectPanel.dataset.tone = tone;
+function announce(text) {
+  shareAnnouncement.textContent = '';
+  window.requestAnimationFrame(() => {
+    shareAnnouncement.textContent = text;
+  });
 }
 
 function formatExpiry(expiresAt) {
   const expiresDate = new Date(expiresAt);
   const minutesLeft = Math.max(1, Math.round((expiresDate.getTime() - Date.now()) / 60000));
-  return `${expiresDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${minutesLeft} min left)`;
+  return `${expiresDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${minutesLeft} min left`;
 }
 
 function formatDateTime(value) {
@@ -64,7 +62,39 @@ function formatBytes(bytes) {
   return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
 }
 
-async function copyValue(value, button) {
+function getLinkTitle(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch (error) {
+    return 'Incoming link';
+  }
+}
+
+function getShareTypeLabel(shareType) {
+  if (shareType === 'file') {
+    return 'File';
+  }
+
+  if (shareType === 'note') {
+    return 'Note';
+  }
+
+  return 'Link';
+}
+
+function getReceivedAnnouncement(share) {
+  if (share.shareType === 'file') {
+    return `File received: ${share.fileName}. It is ready to download in Incoming items.`;
+  }
+
+  if (share.shareType === 'note') {
+    return 'Note received. It is ready to copy in Incoming items.';
+  }
+
+  return 'Link received. It is ready to open in Incoming items.';
+}
+
+async function copyValue(value, button, successMessage) {
   if (!value) {
     return;
   }
@@ -73,11 +103,12 @@ async function copyValue(value, button) {
     await navigator.clipboard.writeText(value);
     const originalText = button.textContent;
     button.textContent = 'Copied';
-    setTimeout(() => {
+    announce(successMessage);
+    window.setTimeout(() => {
       button.textContent = originalText;
     }, 1400);
   } catch (error) {
-    setActivityMessage('Copy is not available in this browser. Select the value manually instead.', 'warning');
+    announce('Copy is not available in this browser. Select the content and copy it manually.');
   }
 }
 
@@ -92,12 +123,14 @@ async function copyFieldValue(fieldId, button) {
     await navigator.clipboard.writeText(targetField.value);
     const originalText = button.textContent;
     button.textContent = 'Copied';
-    setTimeout(() => {
+    announce('Copied to the clipboard.');
+    window.setTimeout(() => {
       button.textContent = originalText;
     }, 1400);
   } catch (error) {
     targetField.focus();
     targetField.select();
+    announce('The value is selected. Copy it using your browser or keyboard.');
   }
 }
 
@@ -107,18 +140,18 @@ document.querySelectorAll('[data-copy-target]').forEach((button) => {
   });
 });
 
-function createActionButton(label, onClick) {
+function createActionButton(label, onClick, isPrimary = false) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'button button-secondary';
+  button.className = `button ${isPrimary ? 'button-primary' : 'button-secondary'}`;
   button.textContent = label;
   button.addEventListener('click', onClick);
   return button;
 }
 
-function createActionLink(label, href, openInNewTab = false) {
+function createActionLink(label, href, { isPrimary = false, openInNewTab = false } = {}) {
   const link = document.createElement('a');
-  link.className = 'button button-secondary';
+  link.className = `button ${isPrimary ? 'button-primary' : 'button-secondary'}`;
   link.href = href;
   link.textContent = label;
 
@@ -135,74 +168,18 @@ function updateShareCount() {
   shareCountBadge.textContent = `${count} item${count === 1 ? '' : 's'}`;
   shareCountBadge.dataset.tone = count > 0 ? 'success' : 'neutral';
   shareListEmptyState.hidden = count > 0;
-}
-
-function hideShareNotification() {
-  if (!shareNotification) {
-    return;
-  }
-
-  window.clearTimeout(shareNotificationTimer);
-  shareNotification.hidden = true;
-}
-
-function focusReceiverInbox() {
-  if (!receiverInboxCard) {
-    return;
-  }
-
-  window.clearTimeout(inboxHighlightTimer);
-  receiverInboxCard.classList.remove('is-highlighted');
-  void receiverInboxCard.offsetWidth;
-  receiverInboxCard.classList.add('is-highlighted');
-  receiverInboxCard.focus({ preventScroll: true });
-  receiverInboxCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-  inboxHighlightTimer = window.setTimeout(() => {
-    receiverInboxCard.classList.remove('is-highlighted');
-  }, 2200);
-}
-
-function getShareNotificationContent(share) {
-  if (share.shareType === 'file') {
-    return {
-      body: `${share.fileName} is ready in the Receiver Inbox. Click to jump there now.`,
-      title: 'File received'
-    };
-  }
-
-  if (share.shareType === 'note') {
-    return {
-      body: 'A new note just arrived. Click to jump to the Receiver Inbox and review it.',
-      title: 'Note received'
-    };
-  }
-
-  return {
-    body: 'A new link just arrived. Click to jump to the Receiver Inbox and open it.',
-    title: 'Link received'
-  };
-}
-
-function showShareNotification(share) {
-  if (!shareNotification || !shareNotificationButton) {
-    return;
-  }
-
-  const content = getShareNotificationContent(share);
-  shareNotificationTitle.textContent = content.title;
-  shareNotificationBody.textContent = content.body;
-  shareNotification.hidden = false;
-  window.clearTimeout(shareNotificationTimer);
-  shareNotificationTimer = window.setTimeout(() => {
-    hideShareNotification();
-  }, 9000);
+  viewInboxButton.hidden = count === 0;
 }
 
 function renderShareCard(share) {
   const card = document.createElement('article');
   card.className = 'share-card';
+  card.dataset.shareId = share.id;
   card.dataset.shareType = share.shareType;
+
+  if (share.isExpired) {
+    card.classList.add('is-expired');
+  }
 
   const head = document.createElement('div');
   head.className = 'share-card-head';
@@ -210,45 +187,80 @@ function renderShareCard(share) {
   const headingWrap = document.createElement('div');
   headingWrap.className = 'share-card-heading';
 
+  const typeBadge = document.createElement('span');
+  typeBadge.className = 'share-type-badge';
+  typeBadge.dataset.shareType = share.shareType;
+  typeBadge.textContent = share.isExpired ? 'Expired' : getShareTypeLabel(share.shareType);
+
   const title = document.createElement('h3');
   title.textContent = share.shareType === 'file'
     ? share.fileName
     : share.shareType === 'note'
-      ? 'Incoming note'
-      : 'Incoming link';
-  headingWrap.appendChild(title);
+      ? 'Text note'
+      : getLinkTitle(share.url);
+  headingWrap.append(typeBadge, title);
+  head.appendChild(headingWrap);
 
-  const typePill = document.createElement('span');
-  typePill.className = 'share-meta-pill';
-  typePill.textContent = share.isExpired ? 'Expired' : share.shareType;
-  head.append(headingWrap, typePill);
-
-  const body = document.createElement('p');
+  let body;
 
   if (share.shareType === 'note') {
-    body.className = 'share-card-note';
-    body.textContent = share.text;
+    const noteText = String(share.text || '');
+
+    if (noteText.length > 360) {
+      body = document.createElement('div');
+      body.className = 'share-card-note-wrap';
+
+      const preview = document.createElement('p');
+      preview.className = 'share-card-note share-card-note-preview';
+      preview.textContent = `${noteText.slice(0, 280).trimEnd()}…`;
+
+      const details = document.createElement('details');
+      details.className = 'note-details';
+      const summary = document.createElement('summary');
+      summary.textContent = 'Show full note';
+      const fullNote = document.createElement('p');
+      fullNote.className = 'share-card-note';
+      fullNote.textContent = noteText;
+      details.append(summary, fullNote);
+      details.addEventListener('toggle', () => {
+        summary.textContent = details.open ? 'Hide full note' : 'Show full note';
+      });
+      body.append(preview, details);
+    } else {
+      body = document.createElement('p');
+      body.className = 'share-card-note';
+      body.textContent = noteText;
+    }
   } else if (share.shareType === 'file') {
-    body.textContent = `${share.fileName} is ready${share.isExpired ? ' but expired' : ''}.`;
+    body = document.createElement('p');
+    body.textContent = share.isExpired
+      ? 'This temporary download has expired.'
+      : 'This file is ready to download.';
   } else {
+    body = document.createElement('p');
+    body.className = 'share-card-link';
     body.textContent = share.url || 'Link ready.';
   }
 
   const meta = document.createElement('div');
   meta.className = 'share-card-meta';
 
-  if (share.availableUntil) {
-    const until = document.createElement('span');
-    until.className = 'share-meta-pill';
-    until.textContent = `Until ${formatDateTime(share.availableUntil)}`;
-    meta.appendChild(until);
+  if (share.createdAt) {
+    const receivedAt = document.createElement('span');
+    receivedAt.textContent = `Received ${formatDateTime(share.createdAt)}`;
+    meta.appendChild(receivedAt);
   }
 
   if (share.shareType === 'file' && share.fileSize) {
     const size = document.createElement('span');
-    size.className = 'share-meta-pill';
     size.textContent = formatBytes(share.fileSize);
     meta.appendChild(size);
+  }
+
+  if (share.availableUntil) {
+    const until = document.createElement('span');
+    until.textContent = `Available until ${formatDateTime(share.availableUntil)}`;
+    meta.appendChild(until);
   }
 
   const actions = document.createElement('div');
@@ -256,26 +268,29 @@ function renderShareCard(share) {
 
   if (!share.isExpired) {
     if (share.shareType === 'link' && share.url) {
-      actions.appendChild(createActionLink('Open link', share.url, true));
-      const copyButton = createActionButton('Copy link', () => {
-        copyValue(share.url, copyButton);
+      actions.appendChild(createActionLink('Open link', share.url, {
+        isPrimary: true,
+        openInNewTab: true
+      }));
+      const copyButton = createActionButton('Copy', () => {
+        copyValue(share.url, copyButton, 'Link copied to the clipboard.');
       });
       actions.appendChild(copyButton);
     }
 
     if (share.shareType === 'note' && share.text) {
       const copyButton = createActionButton('Copy note', () => {
-        copyValue(share.text, copyButton);
-      });
+        copyValue(share.text, copyButton, 'Note copied to the clipboard.');
+      }, true);
       actions.appendChild(copyButton);
     }
 
     if (share.shareType === 'file') {
       if (share.downloadPath) {
-        actions.appendChild(createActionLink('Download file', share.downloadPath));
+        actions.appendChild(createActionLink('Download file', share.downloadPath, { isPrimary: true }));
       } else {
         const unavailable = document.createElement('span');
-        unavailable.className = 'share-meta-pill';
+        unavailable.className = 'share-unavailable';
         unavailable.textContent = 'Download unavailable';
         actions.appendChild(unavailable);
       }
@@ -291,7 +306,7 @@ function renderShareCard(share) {
   return card;
 }
 
-function renderShareList() {
+function renderShareList(newShareId = '') {
   shareList.textContent = '';
   const fragment = document.createDocumentFragment();
 
@@ -301,6 +316,15 @@ function renderShareList() {
 
   shareList.appendChild(fragment);
   updateShareCount();
+
+  if (newShareId && shareList.firstElementChild?.dataset.shareId === String(newShareId)) {
+    window.clearTimeout(newShareHighlightTimer);
+    const newCard = shareList.firstElementChild;
+    newCard.classList.add('is-new');
+    newShareHighlightTimer = window.setTimeout(() => {
+      newCard.classList.remove('is-new');
+    }, 2400);
+  }
 }
 
 function setShares(shares) {
@@ -312,7 +336,7 @@ function setShares(shares) {
 
 function upsertShare(share) {
   currentShares = [share, ...currentShares.filter((item) => item.id !== share.id)];
-  renderShareList();
+  renderShareList(share.id);
 }
 
 async function fetchRecentShares(token) {
@@ -321,12 +345,23 @@ async function fetchRecentShares(token) {
     const payload = await response.json();
 
     if (!response.ok) {
-      throw new Error(payload.message || 'Unable to load the receiver inbox.');
+      throw new Error(payload.message || 'Unable to load incoming items.');
     }
 
-    setShares(payload.shares || []);
+    if (token !== currentSessionToken) {
+      return;
+    }
+
+    const mergedShares = [...currentShares];
+    (payload.shares || []).forEach((share) => {
+      if (!mergedShares.some((item) => item.id === share.id)) {
+        mergedShares.push(share);
+      }
+    });
+    setShares(mergedShares);
   } catch (error) {
-    setActivityMessage(error.message, 'warning');
+    setStatus(error.message);
+    announce(error.message);
   }
 }
 
@@ -337,12 +372,10 @@ function applySession(payload) {
   openMobileLink.href = payload.mobileUrl;
   qrImage.src = payload.qrCodeDataUrl;
   qrImage.hidden = false;
-  expiryLabel.textContent = `This access code stays active until ${formatExpiry(payload.expiresAt)}.`;
+  expiryLabel.textContent = `Code active until ${formatExpiry(payload.expiresAt)}`;
   setBadge('Ready', 'success');
-  setStatus('This device is ready. Scan the QR code or open the phone link on your phone.');
-  setActivityMessage('Waiting for a new share from your phone.', 'neutral');
+  setStatus('Ready. Scan the QR code, then send something from your phone.');
   refreshSessionButton.disabled = false;
-  hideShareNotification();
   setShares([]);
   fetchRecentShares(payload.token);
 }
@@ -353,23 +386,19 @@ const socket = io({
 });
 
 function requestSession(eventName) {
-  setBadge('Syncing', 'warning');
-  setStatus('Generating a fresh access code for this device...');
-  setActivityMessage('This device will stay on standby until a new share is received.', 'neutral');
+  setBadge('Preparing', 'warning');
+  setStatus('Generating a fresh QR code for this device…');
   refreshSessionButton.disabled = true;
   socket.emit(eventName);
 }
 
 socket.on('connect', () => {
-  setBadge('Connected', 'success');
   requestSession('display:register');
 });
 
 socket.on('disconnect', () => {
   setBadge('Reconnecting', 'warning');
-  setStatus('Connection lost. Reconnecting to the service...');
-  setActivityMessage('A new access code will be prepared automatically after reconnection.', 'warning');
-  hideShareNotification();
+  setStatus('Connection lost. Reconnecting automatically…');
 });
 
 socket.on('session:ready', (payload) => {
@@ -377,36 +406,25 @@ socket.on('session:ready', (payload) => {
 });
 
 socket.on('session:error', (payload) => {
+  const message = payload.message || 'A new access code is not available right now.';
   setBadge('Unavailable', 'danger');
-  setStatus(payload.message || 'A new access code is not available right now.');
-  setActivityMessage('The service is temporarily unavailable. Refresh the screen and try again.', 'danger');
+  setStatus(message);
+  announce(message);
   refreshSessionButton.disabled = false;
-  hideShareNotification();
 });
 
 socket.on('share:received', (share) => {
   upsertShare(share);
+  const message = getReceivedAnnouncement(share);
+  setBadge('Received', 'success');
+  setStatus(message);
+  announce(message);
 
   if (share.shareType === 'link' && share.url && autoOpenLinksToggle.checked && !share.isExpired) {
-    setBadge('Opening', 'success');
-    setStatus('Incoming link received. Opening it on this device now...');
-    setActivityMessage(`Opening: ${share.url}`, 'success');
-    setTimeout(() => {
+    setStatus('Link received. Opening it on this device…');
+    window.setTimeout(() => {
       window.location.assign(share.url);
     }, 900);
-    return;
-  }
-
-  setBadge('Received', 'success');
-  setStatus('Incoming share received. Review it in the receiver inbox below.');
-  showShareNotification(share);
-
-  if (share.shareType === 'file') {
-    setActivityMessage('A file is ready in the receiver inbox.', 'success');
-  } else if (share.shareType === 'note') {
-    setActivityMessage('A note is ready in the receiver inbox.', 'success');
-  } else {
-    setActivityMessage('A link is ready in the receiver inbox.', 'success');
   }
 });
 
@@ -414,9 +432,6 @@ refreshSessionButton.addEventListener('click', () => {
   requestSession('display:refresh');
 });
 
-if (shareNotificationButton) {
-  shareNotificationButton.addEventListener('click', () => {
-    hideShareNotification();
-    focusReceiverInbox();
-  });
-}
+viewInboxButton.addEventListener('click', () => {
+  receiverInboxCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});

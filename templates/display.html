@@ -48,171 +48,132 @@
         <div class="topbar-pill">No login required</div>
       </header>
 
-      <main class="layout display-layout" id="hero">
-        <div class="display-column display-column-primary">
-          <section class="hero-panel card card-hero">
-            <p class="eyebrow">Phone-to-computer transfer</p>
-            <h1>Send links and files from your phone to a computer.</h1>
-            <p class="lead">
-              Open this page on the computer or browser that should receive the next item.
-              Scan the QR code with your phone to send a link or file with no login, app, or email.
-            </p>
+      <main id="receiverWorkspace">
+        <header class="workspace-header" id="hero">
+          <div>
+            <p class="eyebrow">Receiver workspace</p>
+            <h1>Receive from your phone.</h1>
+            <p class="lead">Scan once, then open links, copy notes, or download files as they arrive.</p>
+          </div>
+          <div class="status-pill workspace-status" id="connectionBadge" data-tone="neutral">Connecting</div>
+        </header>
 
-            <div class="hero-pills" aria-label="Service highlights">
-              <span class="hero-pill">QR code transfer</span>
-              <span class="hero-pill">No login or app</span>
-              <span class="hero-pill">Works in any modern browser</span>
+        <div class="receiver-workspace">
+          <section class="card session-card" aria-labelledby="connectHeading">
+            <div class="section-heading">
+              <span class="step-marker" aria-hidden="true">1</span>
+              <div>
+                <p class="eyebrow">Connect</p>
+                <h2 id="connectHeading">Scan with your phone</h2>
+              </div>
             </div>
 
-            <div class="feature-grid">
-              <article class="feature-card">
-                <span class="feature-index">01</span>
-                <h2>Open it on your computer</h2>
-                <p>Leave this page open on the computer, laptop, or browser that should receive the next item.</p>
-              </article>
-              <article class="feature-card">
-                <span class="feature-index">02</span>
-                <h2>Scan the QR code</h2>
-                <p>Use your phone to open the sender page linked to this active session.</p>
-              </article>
-              <article class="feature-card">
-                <span class="feature-index">03</span>
-                <h2>Open links or download files</h2>
-                <p>Open links, copy notes, or download files directly on the receiving device.</p>
-              </article>
+            <div class="status-line">
+              <span class="status-dot" aria-hidden="true"></span>
+              <p id="sessionStatusText" role="status" aria-live="polite" aria-atomic="true">Creating a secure QR code for this device.</p>
+              <button class="button-link status-action" id="viewInboxButton" type="button" hidden>View item</button>
             </div>
+
+            <div class="qr-wrapper">
+              <div class="qr-shell">
+                <img id="qrImage" alt="QR code used to open the Sendline sender on a phone" hidden>
+              </div>
+              <p class="helper-copy qr-expiry" id="expiryLabel">A fresh access code will appear here in a moment.</p>
+            </div>
+
+            <details class="connection-options">
+              <summary>Can't scan the QR code?</summary>
+              <div class="connection-options-body">
+                <div class="field-stack">
+                  <label class="field-label" for="tokenField">Session code</label>
+                  <div class="field-row">
+                    <input class="text-field text-field-mono" id="tokenField" readonly value="">
+                    <button class="button button-secondary button-compact" type="button" data-copy-target="tokenField">Copy</button>
+                  </div>
+
+                  <label class="field-label" for="mobileLinkField">Sender link</label>
+                  <div class="field-row field-row-wide">
+                    <input class="text-field text-field-mono" id="mobileLinkField" readonly value="">
+                    <button class="button button-secondary button-compact" type="button" data-copy-target="mobileLinkField">Copy</button>
+                  </div>
+                </div>
+
+                <div class="action-row receiver-actions">
+                  <a class="button button-secondary" id="openMobileLink" href="#" target="_blank" rel="noreferrer">Open sender page</a>
+                  <button class="button button-quiet" id="refreshSessionButton" type="button">Generate new code</button>
+                </div>
+
+                <label class="toggle-row" for="autoOpenLinksToggle">
+                  <input id="autoOpenLinksToggle" type="checkbox">
+                  <span>Automatically open incoming links on this device</span>
+                </label>
+              </div>
+            </details>
           </section>
 
-          <section class="card inbox-card" id="receiverInboxCard" tabindex="-1">
+          <section class="card inbox-card" id="receiverInboxCard" aria-labelledby="inboxHeading">
             <div class="inbox-head">
-              <div>
-                <p class="eyebrow">Receiver inbox</p>
-                <h2>Incoming shares appear here in real time</h2>
+              <div class="section-heading">
+                <span class="step-marker" aria-hidden="true">2</span>
+                <div>
+                  <p class="eyebrow">Received</p>
+                  <h2 id="inboxHeading">Incoming items</h2>
+                </div>
               </div>
               <div class="status-pill" id="shareCountBadge" data-tone="neutral">0 items</div>
             </div>
-            <p class="helper-copy" id="shareListEmptyState">Links, notes, and files from your phone will show up here as soon as they are delivered.</p>
-            <div class="share-list" id="shareList" aria-live="polite"></div>
+
+            <div class="inbox-empty" id="shareListEmptyState">
+              <span class="inbox-empty-icon" aria-hidden="true">↓</span>
+              <strong>Waiting for your first item</strong>
+              <p>Keep this page open. Links, notes, and files will appear here instantly.</p>
+            </div>
+            <div class="share-list" id="shareList"></div>
           </section>
         </div>
 
-        <section class="card session-card">
-          <div class="card-header">
-            <div>
-              <p class="eyebrow">Receiver screen</p>
-              <h2>Ready to receive the next share</h2>
-            </div>
-            <div class="status-pill" id="connectionBadge" data-tone="neutral">Connecting</div>
+        <p class="visually-hidden" id="shareAnnouncement" role="status" aria-live="polite" aria-atomic="true"></p>
+
+        <section class="quick-guide" aria-labelledby="quickGuideHeading">
+          <div class="quick-guide-heading">
+            <p class="eyebrow">How it works</p>
+            <h2 id="quickGuideHeading">A simple, temporary handoff</h2>
           </div>
+          <ol class="quick-guide-list">
+            <li><strong>Scan</strong><span>Open the QR code with your phone.</span></li>
+            <li><strong>Choose</strong><span>Select a link, note, or file.</span></li>
+            <li><strong>Receive</strong><span>Use it here before it expires.</span></li>
+          </ol>
+        </section>
 
-          <div class="status-line">
-            <p id="sessionStatusText">Creating a QR code so your phone can send a secure share to this device.</p>
+        <section class="page-faq" aria-labelledby="faqHeading">
+          <div>
+            <p class="eyebrow">Good to know</p>
+            <h2 id="faqHeading">Frequently asked questions</h2>
           </div>
-
-          <div class="qr-wrapper">
-            <div class="qr-shell">
-              <img id="qrImage" alt="QR code used to open the secure mobile sender page">
-            </div>
-            <p class="helper-copy" id="expiryLabel">A fresh access code will appear here in a moment.</p>
-          </div>
-
-          <div class="field-stack">
-            <label class="field-label" for="tokenField">Session code</label>
-            <div class="field-row">
-              <input class="text-field text-field-mono" id="tokenField" readonly value="">
-              <button class="button button-secondary" type="button" data-copy-target="tokenField">Copy code</button>
-            </div>
-
-            <label class="field-label" for="mobileLinkField">Phone link</label>
-            <div class="field-row field-row-wide">
-              <input class="text-field text-field-mono" id="mobileLinkField" readonly value="">
-              <button class="button button-secondary" type="button" data-copy-target="mobileLinkField">Copy link</button>
-            </div>
-          </div>
-
-          <div class="action-row receiver-actions">
-            <a class="button button-primary" id="openMobileLink" href="#" target="_blank" rel="noreferrer">Open on phone</a>
-            <button class="button button-secondary" id="refreshSessionButton" type="button">Refresh code</button>
-          </div>
-          <p class="receiver-actions-note">Use the phone link to send a link, note, or file quickly, or refresh the code for a fresh session.</p>
-
-          <label class="toggle-row" for="autoOpenLinksToggle">
-            <input id="autoOpenLinksToggle" type="checkbox">
-            <span>Auto-open incoming links on this device</span>
-          </label>
-
-          <div class="feedback-panel" id="redirectPanel" data-tone="neutral">
-            This device stays on standby until a new share is delivered.
+          <div class="page-faq-list">
+            <details>
+              <summary>Do I need an account or app?</summary>
+              <p>No. Sendline works in the browser and does not require sign-up, login, or an app installation.</p>
+            </details>
+            <details>
+              <summary>Can I send a link from my phone to my computer?</summary>
+              <p>Yes. Scan the QR code, open the sender page on your phone, and send the link directly to the receiving browser.</p>
+            </details>
+            <details>
+              <summary>Can I send files with a QR code?</summary>
+              <p>Yes, when file storage is configured. Files are uploaded temporarily and can be downloaded on the receiving device.</p>
+            </details>
+            <details>
+              <summary>Do shared items expire?</summary>
+              <p>Yes. Every shared item has an availability period, and temporary file objects are deleted after expiry.</p>
+            </details>
           </div>
         </section>
       </main>
 
-      <div class="share-notification" id="shareNotification" hidden>
-        <button class="share-notification-card" id="shareNotificationButton" type="button">
-          <span class="share-notification-badge">Incoming share</span>
-          <strong class="share-notification-title" id="shareNotificationTitle">New item received</strong>
-          <span class="share-notification-copy" id="shareNotificationBody">Click to jump to the Receiver Inbox.</span>
-          <span class="share-notification-action">View Receiver Inbox</span>
-        </button>
-      </div>
-
-      <section class="support-grid" aria-label="More about Sendline">
-        <article class="card support-card support-card-wide">
-          <div class="support-head">
-            <p class="eyebrow">Common uses</p>
-            <h2>When you need to move a link or file from your phone to another device fast.</h2>
-            <p class="support-copy">
-              Sendline helps you send a link to your computer, move a file to a shared screen,
-              or hand off a page between browsers without logging in, emailing yourself, or retyping URLs.
-            </p>
-          </div>
-          <div class="support-list">
-            <article class="support-item">
-              <span class="support-item-index">01</span>
-              <h3>Phone to computer</h3>
-              <p>Send a link from your phone to your work machine without messaging yourself or typing it again.</p>
-            </article>
-            <article class="support-item">
-              <span class="support-item-index">02</span>
-              <h3>Phone to shared screen</h3>
-              <p>Send a page or file to a TV, kiosk, or meeting-room browser in seconds.</p>
-            </article>
-            <article class="support-item">
-              <span class="support-item-index">03</span>
-              <h3>Temporary file transfer</h3>
-              <p>Deliver a file with a limited lifetime so it does not stay available after the task is done.</p>
-            </article>
-          </div>
-        </article>
-
-        <article class="card support-card faq-card">
-          <div class="support-head">
-            <p class="eyebrow">FAQ</p>
-            <h2>Frequently asked questions</h2>
-          </div>
-          <div class="faq-list">
-            <details class="faq-item" open>
-              <summary>Do I need to sign up or install an app?</summary>
-              <p>No. Sendline works in the browser on both devices and does not require sign-up or login.</p>
-            </details>
-            <details class="faq-item">
-              <summary>Can I send a link from my phone to my computer?</summary>
-              <p>Yes. Scan the QR code on your computer, open the sender page on your phone, and send the link directly to the receiving browser.</p>
-            </details>
-            <details class="faq-item">
-              <summary>Can I send files with a QR code?</summary>
-              <p>Yes, when file storage is configured. You can upload a temporary file from your phone and download it on the receiving device.</p>
-            </details>
-            <details class="faq-item">
-              <summary>Do file transfers expire?</summary>
-              <p>Yes. File transfers use a configurable lifetime, and the object is deleted after that lifetime expires.</p>
-            </details>
-          </div>
-        </article>
-      </section>
-
       <footer class="footer-note">
-        <span>A practical way to send links and files from your phone to another device.</span>
+        <span>Private by default. No account or app required.</span>
         <span>&copy; __CURRENT_YEAR__ __BRAND_NAME__</span>
       </footer>
     </div>

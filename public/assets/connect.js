@@ -2,121 +2,84 @@ const appConfig = window.__APP_CONFIG__;
 const pageData = window.__PAGE_DATA__ || {};
 
 const handoffForm = document.getElementById('handoffForm');
+const tokenFieldGroup = document.getElementById('tokenFieldGroup');
 const tokenInput = document.getElementById('tokenInput');
+const tokenError = document.getElementById('tokenError');
 const urlInput = document.getElementById('urlInput');
+const urlError = document.getElementById('urlError');
 const noteInput = document.getElementById('noteInput');
+const noteError = document.getElementById('noteError');
+const noteCharacterCount = document.getElementById('noteCharacterCount');
 const fileInput = document.getElementById('fileInput');
 const fileInputHint = document.getElementById('fileInputHint');
+const fileError = document.getElementById('fileError');
+const clearFileButton = document.getElementById('clearFileButton');
+const fileProgress = document.getElementById('fileProgress');
+const fileProgressBar = document.getElementById('fileProgressBar');
+const fileProgressFill = document.getElementById('fileProgressFill');
+const fileProgressLabel = document.getElementById('fileProgressLabel');
 const retentionSelect = document.getElementById('retentionSelect');
+const retentionSummary = document.getElementById('retentionSummary');
 const submitButton = document.getElementById('submitButton');
 const sessionLookupStatus = document.getElementById('sessionLookupStatus');
+const sessionLookupStatusIcon = sessionLookupStatus.querySelector('.connection-banner-icon');
+const sessionLookupStatusText = sessionLookupStatus.querySelector('span:last-child');
 const resultPanel = document.getElementById('resultPanel');
 const completionOverlay = document.getElementById('completionOverlay');
 const completionTitle = document.getElementById('completionTitle');
 const completionMessage = document.getElementById('completionMessage');
-const completionCountdown = document.getElementById('completionCountdown');
-const completionProgressBar = document.getElementById('completionProgressBar');
+const sendAnotherButton = document.getElementById('sendAnotherButton');
+const closePageButton = document.getElementById('closePageButton');
 const shareTypeInputs = Array.from(document.querySelectorAll('input[name="shareType"]'));
 const sharePanels = Array.from(document.querySelectorAll('[data-share-panel]'));
 const fileShareOption = document.getElementById('fileShareOption');
+const fileAvailabilityMessage = document.getElementById('fileAvailabilityMessage');
 
-const CLOSE_DELAY_SECONDS = 5;
+const prefilledToken = String(pageData.token || '').trim();
 
 let activeSession = null;
-let closeCountdownIntervalId = null;
-let closeTimeoutId = null;
-let isCloseSequenceActive = false;
+let completionIsOpen = false;
+let sessionLookupSequence = 0;
 
 function setLookupMessage(text, tone = 'neutral') {
-  sessionLookupStatus.textContent = text;
+  const icons = {
+    danger: '!',
+    neutral: '•••',
+    success: '✓',
+    warning: '…'
+  };
+
+  sessionLookupStatusText.textContent = text;
+  sessionLookupStatusIcon.textContent = icons[tone] || icons.neutral;
   sessionLookupStatus.dataset.tone = tone;
 }
 
-function setResultMessage(text, tone = 'neutral') {
+function setResultMessage(text = '', tone = 'neutral') {
   resultPanel.textContent = text;
   resultPanel.dataset.tone = tone;
+  resultPanel.hidden = !text;
 }
 
-function setSubmitting(isSubmitting, label = 'Sending share...') {
+function setSubmitting(isSubmitting, label = 'Sending…') {
   submitButton.disabled = isSubmitting;
-  submitButton.textContent = isSubmitting ? label : 'Send share';
+  submitButton.textContent = isSubmitting ? label : getSubmitLabel();
+  handoffForm.setAttribute('aria-busy', String(isSubmitting));
 }
 
 function setConnectPageLocked(isLocked) {
   handoffForm.querySelectorAll('input, button, textarea, select').forEach((element) => {
-    element.disabled = isLocked;
+    if (isLocked) {
+      element.dataset.disabledBeforeCompletion = String(element.disabled);
+      element.disabled = true;
+      return;
+    }
+
+    element.disabled = element.dataset.disabledBeforeCompletion === 'true';
+    delete element.dataset.disabledBeforeCompletion;
   });
 
   handoffForm.toggleAttribute('inert', isLocked);
   document.body.classList.toggle('is-completing', isLocked);
-}
-
-function updateCloseCountdown(secondsLeft) {
-  const safeSecondsLeft = Math.max(0, secondsLeft);
-  const scale = safeSecondsLeft / CLOSE_DELAY_SECONDS;
-
-  completionCountdown.textContent = String(safeSecondsLeft);
-  completionMessage.textContent = `This page will close in ${safeSecondsLeft} second${safeSecondsLeft === 1 ? '' : 's'}.`;
-  completionProgressBar.style.transform = `scaleX(${scale})`;
-}
-
-function attemptClosePage() {
-  window.close();
-
-  window.setTimeout(() => {
-    if (document.visibilityState === 'visible') {
-      const currentWindow = window.open('', '_self');
-
-      if (currentWindow) {
-        currentWindow.close();
-      }
-    }
-
-    window.setTimeout(() => {
-      if (document.visibilityState === 'visible') {
-        window.location.replace('about:blank');
-      }
-    }, 250);
-  }, 250);
-}
-
-function startCloseSequence(title) {
-  if (isCloseSequenceActive) {
-    return;
-  }
-
-  isCloseSequenceActive = true;
-  completionTitle.textContent = title;
-  setConnectPageLocked(true);
-  completionOverlay.hidden = false;
-  completionOverlay.classList.add('is-visible');
-  tokenInput.blur();
-
-  if (urlInput) {
-    urlInput.blur();
-  }
-
-  if (noteInput) {
-    noteInput.blur();
-  }
-
-  let secondsLeft = CLOSE_DELAY_SECONDS;
-  updateCloseCountdown(secondsLeft);
-
-  closeCountdownIntervalId = window.setInterval(() => {
-    secondsLeft -= 1;
-    updateCloseCountdown(secondsLeft);
-
-    if (secondsLeft <= 0) {
-      window.clearInterval(closeCountdownIntervalId);
-      closeCountdownIntervalId = null;
-    }
-  }, 1000);
-
-  closeTimeoutId = window.setTimeout(() => {
-    closeTimeoutId = null;
-    attemptClosePage();
-  }, CLOSE_DELAY_SECONDS * 1000);
 }
 
 function formatBytes(bytes) {
@@ -130,9 +93,62 @@ function formatBytes(bytes) {
   return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
 }
 
+function formatRetention(minutes) {
+  const numericMinutes = Number(minutes);
+
+  if (numericMinutes >= 1440 && numericMinutes % 1440 === 0) {
+    const days = numericMinutes / 1440;
+    return `${days} day${days === 1 ? '' : 's'}`;
+  }
+
+  if (numericMinutes >= 60 && numericMinutes % 60 === 0) {
+    const hours = numericMinutes / 60;
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+
+  return `${numericMinutes} minute${numericMinutes === 1 ? '' : 's'}`;
+}
+
 function getSelectedShareType() {
   const selected = shareTypeInputs.find((input) => input.checked);
   return selected ? selected.value : 'link';
+}
+
+function getSubmitLabel() {
+  return `Send ${getSelectedShareType()}`;
+}
+
+function getActiveShareInput() {
+  const shareType = getSelectedShareType();
+
+  if (shareType === 'note') {
+    return noteInput;
+  }
+
+  if (shareType === 'file') {
+    return fileInput;
+  }
+
+  return urlInput;
+}
+
+function getDefaultFileHint() {
+  const maxBytes = Number(appConfig.storage.maxFileBytes || 0);
+  return maxBytes > 0
+    ? `Choose a temporary file up to ${formatBytes(maxBytes)}.`
+    : 'Choose a temporary file to upload.';
+}
+
+function setFieldError(input, errorElement, message = '') {
+  errorElement.textContent = message;
+  errorElement.hidden = !message;
+  input.setAttribute('aria-invalid', String(Boolean(message)));
+}
+
+function clearContentErrors() {
+  setFieldError(urlInput, urlError);
+  setFieldError(noteInput, noteError);
+  setFieldError(fileInput, fileError);
 }
 
 function populateRetentionOptions() {
@@ -142,7 +158,7 @@ function populateRetentionOptions() {
   options.forEach((minutes) => {
     const option = document.createElement('option');
     option.value = String(minutes);
-    option.textContent = `${minutes} minute${minutes === 1 ? '' : 's'}`;
+    option.textContent = formatRetention(minutes);
 
     if (minutes === appConfig.storage.defaultRetentionMinutes) {
       option.selected = true;
@@ -150,33 +166,115 @@ function populateRetentionOptions() {
 
     retentionSelect.appendChild(option);
   });
+
+  retentionSummary.textContent = formatRetention(retentionSelect.value);
 }
 
-function syncShareTypePanels() {
+function syncShareTypePanels({ focusInput = false } = {}) {
   const selectedShareType = getSelectedShareType();
 
   sharePanels.forEach((panel) => {
     panel.hidden = panel.dataset.sharePanel !== selectedShareType;
   });
 
+  clearContentErrors();
+  setResultMessage();
+  submitButton.textContent = getSubmitLabel();
+
   if (selectedShareType === 'file' && !appConfig.storage.enabled) {
-    setResultMessage('File sharing is not configured on this server yet. Choose a link or note instead.', 'warning');
-  } else {
-    setResultMessage('The receiver session will be checked before the other device is updated.', 'neutral');
+    setResultMessage('File sharing is not available on this server. Choose a link or note instead.', 'warning');
   }
+
+  if (focusInput) {
+    getActiveShareInput().focus();
+  }
+}
+
+function resetFileProgress() {
+  fileProgress.hidden = true;
+  fileProgressBar.setAttribute('aria-valuenow', '0');
+  fileProgressFill.style.width = '0%';
+  fileProgressLabel.textContent = '0%';
+}
+
+function updateFileProgress(percent) {
+  const safePercent = Math.max(0, Math.min(100, percent));
+  fileProgress.hidden = false;
+  fileProgressBar.setAttribute('aria-valuenow', String(safePercent));
+  fileProgressFill.style.width = `${safePercent}%`;
+  fileProgressLabel.textContent = `${safePercent}%`;
+}
+
+function updateNoteCount() {
+  noteCharacterCount.textContent = `${noteInput.value.length.toLocaleString()} / 4,000`;
+}
+
+function validateShareContent() {
+  const shareType = getSelectedShareType();
+  clearContentErrors();
+
+  if (shareType === 'link') {
+    const rawUrl = urlInput.value.trim();
+
+    if (!rawUrl) {
+      setFieldError(urlInput, urlError, 'Paste or enter a link to send.');
+      urlInput.focus();
+      return false;
+    }
+
+    try {
+      const candidate = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+      const parsedUrl = new URL(candidate);
+
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        throw new Error('Unsupported protocol');
+      }
+    } catch (error) {
+      setFieldError(urlInput, urlError, 'Enter a valid web link that starts with http:// or https://.');
+      urlInput.focus();
+      return false;
+    }
+  }
+
+  if (shareType === 'note' && !noteInput.value.trim()) {
+    setFieldError(noteInput, noteError, 'Enter some text to send.');
+    noteInput.focus();
+    return false;
+  }
+
+  if (shareType === 'file') {
+    const file = fileInput.files && fileInput.files[0];
+
+    if (!file) {
+      setFieldError(fileInput, fileError, 'Choose a file to send.');
+      fileInput.focus();
+      return false;
+    }
+
+    const maxBytes = Number(appConfig.storage.maxFileBytes || 0);
+    if (maxBytes > 0 && file.size > maxBytes) {
+      setFieldError(fileInput, fileError, `Choose a file smaller than ${formatBytes(maxBytes)}.`);
+      fileInput.focus();
+      return false;
+    }
+  }
+
+  return true;
 }
 
 async function loadSessionState() {
   const token = tokenInput.value.trim();
-
+  const lookupSequence = ++sessionLookupSequence;
   activeSession = null;
+  setFieldError(tokenInput, tokenError);
 
   if (!token) {
-    setLookupMessage('Scan the QR code or enter the session code to continue.', 'neutral');
-    return;
+    tokenFieldGroup.hidden = false;
+    setLookupMessage('Enter the session code shown on the receiving screen.', 'neutral');
+    return false;
   }
 
-  setLookupMessage('Checking whether this receiver screen is still available...', 'warning');
+  setLookupMessage('Checking the receiving screen…', 'warning');
 
   try {
     const response = await fetch(`${appConfig.routes.session}/${encodeURIComponent(token)}`);
@@ -186,10 +284,23 @@ async function loadSessionState() {
       throw new Error(payload.message || 'The session code could not be verified.');
     }
 
+    if (lookupSequence !== sessionLookupSequence || token !== tokenInput.value.trim()) {
+      return false;
+    }
+
     activeSession = payload.session;
-    setLookupMessage('Receiver screen found. You can send a share now.', 'success');
+    tokenFieldGroup.hidden = token === prefilledToken && Boolean(prefilledToken);
+    setLookupMessage('Connected to the receiving screen', 'success');
+    return true;
   } catch (error) {
-    setLookupMessage(error.message, 'danger');
+    if (lookupSequence !== sessionLookupSequence || token !== tokenInput.value.trim()) {
+      return false;
+    }
+
+    tokenFieldGroup.hidden = false;
+    setFieldError(tokenInput, tokenError, error.message);
+    setLookupMessage('Could not connect. Check the session code and try again.', 'danger');
+    return false;
   }
 }
 
@@ -207,21 +318,21 @@ function uploadFile(upload, file) {
         return;
       }
 
-      const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
-      setResultMessage(`Uploading file... ${percent}%`, 'warning');
+      updateFileProgress(Math.round((event.loaded / event.total) * 100));
     });
 
     xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) {
+        updateFileProgress(100);
         resolve();
         return;
       }
 
-      reject(new Error('The direct upload to temporary storage failed.'));
+      reject(new Error('The upload to temporary storage failed.'));
     });
 
     xhr.addEventListener('error', () => {
-      reject(new Error('The direct upload to temporary storage failed.'));
+      reject(new Error('The upload to temporary storage failed.'));
     });
 
     xhr.send(file);
@@ -259,11 +370,12 @@ async function sendFile(token) {
   }
 
   if (!appConfig.storage.enabled) {
-    throw new Error('File sharing is not configured on this server yet.');
+    throw new Error('File sharing is not available on this server.');
   }
 
-  setSubmitting(true, 'Preparing upload...');
-  setResultMessage('Preparing secure file upload...', 'warning');
+  setSubmitting(true, 'Preparing upload…');
+  setResultMessage('Preparing a secure file upload…', 'warning');
+  resetFileProgress();
 
   const prepareResponse = await fetch(appConfig.routes.filePrepare, {
     method: 'POST',
@@ -284,11 +396,12 @@ async function sendFile(token) {
     throw new Error(preparePayload.message || 'Unable to prepare this file upload.');
   }
 
-  setSubmitting(true, 'Uploading file...');
+  setSubmitting(true, 'Uploading file…');
+  setResultMessage('Uploading your file…', 'warning');
   await uploadFile(preparePayload.upload, file);
 
-  setSubmitting(true, 'Finishing upload...');
-  setResultMessage('Verifying the uploaded file and notifying the receiver...', 'warning');
+  setSubmitting(true, 'Finishing upload…');
+  setResultMessage('Finishing the upload and notifying the receiver…', 'warning');
 
   const finalizeResponse = await fetch(appConfig.routes.fileFinalize, {
     method: 'POST',
@@ -303,7 +416,7 @@ async function sendFile(token) {
   const finalizePayload = await finalizeResponse.json();
 
   if (!finalizeResponse.ok) {
-    throw new Error(finalizePayload.message || 'Unable to finalize this file share.');
+    throw new Error(finalizePayload.message || 'Unable to finish this file share.');
   }
 
   return finalizePayload;
@@ -312,28 +425,63 @@ async function sendFile(token) {
 function clearShareInputs(shareType) {
   if (shareType === 'link') {
     urlInput.value = '';
-    return;
-  }
-
-  if (shareType === 'note') {
+  } else if (shareType === 'note') {
     noteInput.value = '';
-    return;
+    updateNoteCount();
+  } else if (shareType === 'file') {
+    fileInput.value = '';
+    fileInputHint.textContent = getDefaultFileHint();
+    clearFileButton.hidden = true;
+    resetFileProgress();
   }
 
-  if (shareType === 'file') {
-    fileInput.value = '';
-    fileInputHint.textContent = 'Files upload directly to temporary cloud storage and expire automatically.';
-  }
+  clearContentErrors();
+}
+
+function showCompletion(shareType) {
+  completionIsOpen = true;
+  completionTitle.textContent = shareType === 'file'
+    ? 'Your file is ready on the other device.'
+    : 'The other device has your share.';
+  completionMessage.textContent = 'You can send another item or close this page.';
+  closePageButton.textContent = 'Close page';
+  setConnectPageLocked(true);
+  completionOverlay.hidden = false;
+  sendAnotherButton.focus();
+}
+
+function resetAfterCompletion() {
+  completionIsOpen = false;
+  completionOverlay.hidden = true;
+  setConnectPageLocked(false);
+  setSubmitting(false);
+  setResultMessage();
+  setLookupMessage('Connected to the receiving screen', 'success');
+  getActiveShareInput().focus();
+}
+
+function attemptClosePage() {
+  window.close();
+
+  window.setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      completionMessage.textContent = 'Your browser kept this page open. You can close this tab when you are done.';
+      closePageButton.textContent = 'Try closing again';
+    }
+  }, 300);
 }
 
 populateRetentionOptions();
-
-tokenInput.value = pageData.token || '';
+fileInputHint.textContent = getDefaultFileHint();
+tokenInput.value = prefilledToken;
+tokenFieldGroup.hidden = Boolean(prefilledToken);
 
 if (!appConfig.storage.enabled) {
   const fileInputOption = fileShareOption.querySelector('input');
   fileInputOption.disabled = true;
   fileShareOption.classList.add('is-disabled');
+  fileShareOption.setAttribute('aria-disabled', 'true');
+  fileAvailabilityMessage.hidden = false;
 
   if ((pageData.shareType || '').toLowerCase() === 'file') {
     shareTypeInputs[0].checked = true;
@@ -349,54 +497,120 @@ if (pageData.shareType) {
 }
 
 syncShareTypePanels();
+updateNoteCount();
 
-if (pageData.token) {
+if (prefilledToken) {
   loadSessionState();
+} else {
+  setLookupMessage('Enter the session code shown on the receiving screen.', 'neutral');
 }
 
 shareTypeInputs.forEach((input) => {
-  input.addEventListener('change', syncShareTypePanels);
+  input.addEventListener('change', () => {
+    syncShareTypePanels({ focusInput: true });
+  });
 });
 
-tokenInput.addEventListener('change', loadSessionState);
+tokenInput.addEventListener('input', () => {
+  sessionLookupSequence += 1;
+  activeSession = null;
+  setFieldError(tokenInput, tokenError);
+});
 tokenInput.addEventListener('blur', loadSessionState);
+
+urlInput.addEventListener('input', () => {
+  setFieldError(urlInput, urlError);
+});
+
+noteInput.addEventListener('input', () => {
+  setFieldError(noteInput, noteError);
+  updateNoteCount();
+});
 
 fileInput.addEventListener('change', () => {
   const file = fileInput.files && fileInput.files[0];
+  setFieldError(fileInput, fileError);
+  resetFileProgress();
 
   if (!file) {
-    fileInputHint.textContent = 'Files upload directly to temporary cloud storage and expire automatically.';
+    fileInputHint.textContent = getDefaultFileHint();
+    clearFileButton.hidden = true;
     return;
   }
 
-  fileInputHint.textContent = `${file.name} • ${formatBytes(file.size)}`;
+  fileInputHint.textContent = `${file.name} · ${formatBytes(file.size)}`;
+  clearFileButton.hidden = false;
+});
+
+clearFileButton.addEventListener('click', () => {
+  fileInput.value = '';
+  fileInputHint.textContent = getDefaultFileHint();
+  clearFileButton.hidden = true;
+  resetFileProgress();
+  setFieldError(fileInput, fileError);
+  fileInput.focus();
+});
+
+retentionSelect.addEventListener('change', () => {
+  retentionSummary.textContent = formatRetention(retentionSelect.value);
+});
+
+sendAnotherButton.addEventListener('click', resetAfterCompletion);
+closePageButton.addEventListener('click', attemptClosePage);
+
+document.addEventListener('keydown', (event) => {
+  if (!completionIsOpen) {
+    return;
+  }
+
+  if (event.key === 'Escape') {
+    resetAfterCompletion();
+    return;
+  }
+
+  if (event.key === 'Tab') {
+    const firstButton = sendAnotherButton;
+    const lastButton = closePageButton;
+
+    if (event.shiftKey && document.activeElement === firstButton) {
+      event.preventDefault();
+      lastButton.focus();
+    } else if (!event.shiftKey && document.activeElement === lastButton) {
+      event.preventDefault();
+      firstButton.focus();
+    }
+  }
 });
 
 handoffForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-
-  if (isCloseSequenceActive) {
-    return;
-  }
+  setResultMessage();
 
   const token = tokenInput.value.trim();
   const shareType = getSelectedShareType();
-  let keepLockedAfterSubmit = false;
 
   if (!token) {
-    setLookupMessage('A session code is required before a share can be sent.', 'danger');
+    tokenFieldGroup.hidden = false;
+    setFieldError(tokenInput, tokenError, 'Enter a session code before sending.');
+    setLookupMessage('A session code is required.', 'danger');
     tokenInput.focus();
     return;
   }
 
-  if (!activeSession) {
-    await loadSessionState();
+  if (!validateShareContent()) {
+    return;
+  }
 
-    if (!activeSession) {
+  if (!activeSession || activeSession.token !== token) {
+    const sessionIsReady = await loadSessionState();
+
+    if (!sessionIsReady) {
       tokenInput.focus();
       return;
     }
   }
+
+  let shareWasSent = false;
 
   try {
     let payload;
@@ -404,20 +618,20 @@ handoffForm.addEventListener('submit', async (event) => {
     if (shareType === 'file') {
       payload = await sendFile(token);
     } else {
-      setSubmitting(true, 'Sending share...');
-      setResultMessage('Checking the share and notifying the receiver...', 'warning');
+      setSubmitting(true, 'Sending…');
+      setResultMessage('Sending to the receiving screen…', 'warning');
       payload = await sendLinkOrNote(token, shareType);
     }
 
-    keepLockedAfterSubmit = true;
-    setLookupMessage('Receiver screen connected. Your share has been accepted.', 'success');
-    setResultMessage(payload.message || 'Share sent. The other device should update in a moment.', 'success');
+    shareWasSent = true;
+    setLookupMessage('Connected to the receiving screen', 'success');
+    setResultMessage(payload.message || 'Share sent.', 'success');
     clearShareInputs(shareType);
-    startCloseSequence(shareType === 'file' ? 'The other device can download your file.' : 'The other device has your share.');
+    showCompletion(shareType);
   } catch (error) {
     setResultMessage(error.message, 'danger');
   } finally {
-    if (!keepLockedAfterSubmit) {
+    if (!shareWasSent) {
       setSubmitting(false);
     }
   }
