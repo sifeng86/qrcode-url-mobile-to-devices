@@ -15,10 +15,13 @@ const shareListEmptyState = document.getElementById('shareListEmptyState');
 const shareAnnouncement = document.getElementById('shareAnnouncement');
 const receiverInboxCard = document.getElementById('receiverInboxCard');
 const viewInboxButton = document.getElementById('viewInboxButton');
+const connectionOptions = document.querySelector('.connection-options');
 
 let currentSessionToken = '';
+let currentSessionExpiresAt = null;
 let currentShares = [];
 let newShareHighlightTimer = 0;
+let sessionIsExpired = false;
 
 function setBadge(text, tone) {
   connectionBadge.textContent = text;
@@ -36,10 +39,38 @@ function announce(text) {
   });
 }
 
-function formatExpiry(expiresAt) {
-  const expiresDate = new Date(expiresAt);
-  const minutesLeft = Math.max(1, Math.round((expiresDate.getTime() - Date.now()) / 60000));
-  return `${expiresDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${minutesLeft} min left`;
+function getExpirationTime(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
+function formatRemainingTime(expiresAt, now = Date.now()) {
+  const expirationTime = getExpirationTime(expiresAt);
+
+  if (expirationTime === null || expirationTime <= now) {
+    return 'expired';
+  }
+
+  const secondsLeft = Math.ceil((expirationTime - now) / 1000);
+
+  const minutesLeft = Math.floor(secondsLeft / 60);
+  const remainingSeconds = secondsLeft % 60;
+  return minutesLeft > 0
+    ? `${minutesLeft} min ${remainingSeconds} sec left`
+    : `${remainingSeconds} sec left`;
+}
+
+function isShareAvailable(share, now = Date.now()) {
+  if (share.isExpired || ['expired', 'deleted'].includes(share.status)) {
+    return false;
+  }
+
+  const expirationTime = getExpirationTime(share.availableUntil);
+  return expirationTime === null || expirationTime > now;
 }
 
 function formatDateTime(value) {
@@ -328,15 +359,66 @@ function renderShareList(newShareId = '') {
 }
 
 function setShares(shares) {
-  currentShares = shares.slice().sort((left, right) => {
+  currentShares = shares.filter((share) => isShareAvailable(share)).sort((left, right) => {
     return new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime();
   });
   renderShareList();
 }
 
 function upsertShare(share) {
+  if (!isShareAvailable(share)) {
+    return;
+  }
+
   currentShares = [share, ...currentShares.filter((item) => item.id !== share.id)];
   renderShareList(share.id);
+}
+
+function updateSessionExpiry(now = Date.now()) {
+  const expirationTime = getExpirationTime(currentSessionExpiresAt);
+
+  if (expirationTime === null) {
+    return;
+  }
+
+  const expiresDate = new Date(expirationTime);
+  const expiryTime = expiresDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const remaining = formatRemainingTime(expirationTime, now);
+
+  if (remaining === 'expired') {
+    expiryLabel.textContent = `Code expired at ${expiryTime}`;
+
+    if (!sessionIsExpired) {
+      sessionIsExpired = true;
+      setBadge('Expired', 'warning');
+      setStatus('This QR code has expired. Generate a new code to keep receiving.');
+      connectionOptions.open = true;
+      announce('The QR code has expired. Generate a new code to keep receiving.');
+    }
+
+    return;
+  }
+
+  expiryLabel.textContent = `Code active until ${expiryTime} · ${remaining}`;
+}
+
+function removeExpiredShares(now = Date.now()) {
+  const availableShares = currentShares.filter((share) => isShareAvailable(share, now));
+  const removedCount = currentShares.length - availableShares.length;
+
+  if (removedCount === 0) {
+    return;
+  }
+
+  currentShares = availableShares;
+  renderShareList();
+  announce(`${removedCount} expired item${removedCount === 1 ? '' : 's'} removed from Incoming items.`);
+}
+
+function updateTimeSensitiveUi() {
+  const now = Date.now();
+  updateSessionExpiry(now);
+  removeExpiredShares(now);
 }
 
 async function fetchRecentShares(token) {
@@ -367,12 +449,14 @@ async function fetchRecentShares(token) {
 
 function applySession(payload) {
   currentSessionToken = payload.token;
+  currentSessionExpiresAt = payload.expiresAt;
+  sessionIsExpired = false;
   tokenField.value = payload.token;
   mobileLinkField.value = payload.mobileUrl;
   openMobileLink.href = payload.mobileUrl;
   qrImage.src = payload.qrCodeDataUrl;
   qrImage.hidden = false;
-  expiryLabel.textContent = `Code active until ${formatExpiry(payload.expiresAt)}`;
+  updateSessionExpiry();
   setBadge('Ready', 'success');
   setStatus('Ready. Scan the QR code, then send something from your phone.');
   refreshSessionButton.disabled = false;
@@ -386,6 +470,8 @@ const socket = io({
 });
 
 function requestSession(eventName) {
+  currentSessionExpiresAt = null;
+  sessionIsExpired = false;
   setBadge('Preparing', 'warning');
   setStatus('Generating a fresh QR code for this device…');
   refreshSessionButton.disabled = true;
@@ -434,4 +520,12 @@ refreshSessionButton.addEventListener('click', () => {
 
 viewInboxButton.addEventListener('click', () => {
   receiverInboxCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+window.setInterval(updateTimeSensitiveUi, 1000);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    updateTimeSensitiveUi();
+  }
 });

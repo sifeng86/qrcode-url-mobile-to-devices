@@ -61,6 +61,17 @@ test('receiver keeps connect, inbox, and help in the intended narrow-screen orde
   assert.match(html, /id="shareAnnouncement"[^>]+aria-live="polite"/);
 });
 
+test('receiver continuously updates session and share expiry state', () => {
+  const javaScript = read('public/assets/display.js');
+  const appSource = read('src/app.js');
+
+  assert.match(javaScript, /function formatRemainingTime\(/);
+  assert.match(javaScript, /function removeExpiredShares\(/);
+  assert.match(javaScript, /setInterval\(updateTimeSensitiveUi, 1000\)/);
+  assert.match(javaScript, /document\.addEventListener\('visibilitychange'/);
+  assert.match(appSource, /shareItem\.status === 'delivered'[\s\S]+!isExpiredShareItem\(shareItem\)/);
+});
+
 test('sender has accessible status regions and an explicit success choice', () => {
   const html = read('templates/connect.html');
   const javaScript = read('public/assets/connect.js');

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon --legacy-watch",
     "start": "node server.js",
-    "test": "node --test test/config.test.js test/validation.test.js test/ui-contract.test.js",
+    "test": "node --test test/config.test.js test/validation.test.js test/ui-contract.test.js test/share-lifetime.test.js",
     "test:e2e": "node --test test/e2e.relay-flow.test.js",
     "test:all": "node --test"
   },

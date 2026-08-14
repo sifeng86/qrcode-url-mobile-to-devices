@@ -280,7 +280,10 @@ function buildShareSummary(config, shareItem) {
 
 function buildVisibleShares(config, shareItems) {
   return shareItems
-    .filter((shareItem) => shareItem.status !== 'pending_upload')
+    .filter((shareItem) => (
+      shareItem.status === 'delivered'
+      && !isExpiredShareItem(shareItem)
+    ))
     .map((shareItem) => buildShareSummary(config, shareItem));
 }
 
@@ -1054,5 +1057,6 @@ async function createApp(config) {
 }
 
 module.exports = {
+  buildVisibleShares,
   createApp
 };
